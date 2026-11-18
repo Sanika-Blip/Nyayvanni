@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NyayVanni Admin</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="login-view" class="login-wrap">
+    <div class="login-card">
+      <div class="brand">NV</div>
+      <h1>NyayVanni Admin</h1>
+      <p class="muted">Approve officer registrations, issue IDs, and manage all records.</p>
+      <form id="login-form">
+        <label>Username<input name="username" value="admin" required /></label>
+        <label>Password<input name="password" type="password" value="Admin@12345" required /></label>
+        <button type="submit">Sign in</button>
+        <p id="login-error" class="error"></p>
+      </form>
+      <p class="hint">Default login: <code>admin</code> / <code>Admin@12345</code></p>
+    </div>
+  </div>
+
+  <div id="app-view" class="app hidden">
+    <aside>
+      <div class="aside-brand">NyayVanni</div>
+      <nav>
+        <button data-tab="overview" class="active">Overview</button>
+        <button data-tab="registrations">Registrations</button>
+        <button data-tab="officers">Officers</button>
+        <button data-tab="drafts">FIR drafts</button>
+        <button data-tab="stations">Stations</button>
+        <button data-tab="admins">Admins</button>
+        <button data-tab="emails">Email log</button>
+      </nav>
+      <button id="logout" class="ghost">Sign out</button>
+    </aside>
+    <main>
+      <header class="top">
+        <h2 id="page-title">Overview</h2>
+        <span id="who" class="muted"></span>
+      </header>
+      <p id="flash" class="flash hidden"></p>
+      <section id="panel"></section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="modal-title"></h3>
+      <form id="modal-form"></form>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,374 @@
+const fs = require("fs");
+const path = require("path");
+const bcrypt = require("bcryptjs");
+const { randomUUID, randomBytes } = require("crypto");
+
+const DATA_DIR = path.join(__dirname, "..", "data");
+const DATA_PATH = path.join(DATA_DIR, "db.json");
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function emptyDb() {
+  return {
+    admins: [],
+    registrations: [],
+    officers: [],
+    stations: [],
+    drafts: [],
+    emails: [],
+  };
+}
+
+let db = emptyDb();
+
+function persist() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(DATA_PATH, JSON.stringify(db, null, 2), "utf8");
+}
+
+function publicAdmin(a) {
+  const { passwordHash, ...rest } = a;
+  return rest;
+}
+
+function publicOfficer(o) {
+  const { passwordHash, ...rest } = o;
+  return rest;
+}
+
+async function seedIfNeeded() {
+  if (!db.admins.length) {
+    db.admins.push({
+      id: randomUUID(),
+      username: process.env.ADMIN_USERNAME || "admin",
+      name: "NyayVanni Administrator",
+      email: process.env.ADMIN_EMAIL || "admin@nyayvanni.local",
+      passwordHash: await bcrypt.hash(process.env.ADMIN_PASSWORD || "Admin@12345", 10),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+  }
+  if (!db.stations.length) {
+    db.stations.push({
+      id: randomUUID(),
+      name: "Nashik Road Police Station",
+      district: "Nashik",
+      state: "Maharashtra",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+  }
+  persist();
+}
+
+function load() {
+  try {
+    if (fs.existsSync(DATA_PATH)) {
+      db = { ...emptyDb(), ...JSON.parse(fs.readFileSync(DATA_PATH, "utf8")) };
+    }
+  } catch {
+    db = emptyDb();
+  }
+}
+
+function generateOfficerId() {
+  const n = String(db.officers.length + 1).padStart(4, "0");
+  return `NV-PO-${new Date().getFullYear()}-${n}`;
+}
+
+function generatePassword() {
+  return randomBytes(5).toString("hex");
+}
+
+const store = {
+  load,
+  persist,
+  seedIfNeeded,
+  snapshot() {
+    return db;
+  },
+
+  // --- Admins ---
+  listAdmins() {
+    return db.admins.map(publicAdmin);
+  },
+  findAdminByUsername(username) {
+    return db.admins.find((a) => a.username.toLowerCase() === String(username).toLowerCase());
+  },
+  findAdminById(id) {
+    return db.admins.find((a) => a.id === id);
+  },
+  async createAdmin(payload) {
+    if (this.findAdminByUsername(payload.username)) {
+      throw new Error("Username already exists");
+    }
+    const row = {
+      id: randomUUID(),
+      username: payload.username.trim(),
+      name: payload.name.trim(),
+      email: payload.email.trim(),
+      passwordHash: await bcrypt.hash(payload.password, 10),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    db.admins.push(row);
+    persist();
+    return publicAdmin(row);
+  },
+  async updateAdmin(id, payload) {
+    const row = this.findAdminById(id);
+    if (!row) return null;
+    if (payload.username) row.username = payload.username.trim();
+    if (payload.name) row.name = payload.name.trim();
+    if (payload.email) row.email = payload.email.trim();
+    if (payload.password) row.passwordHash = await bcrypt.hash(payload.password, 10);
+    row.updatedAt = nowIso();
+    persist();
+    return publicAdmin(row);
+  },
+  deleteAdmin(id) {
+    if (db.admins.length <= 1) throw new Error("Cannot delete the last admin");
+    const before = db.admins.length;
+    db.admins = db.admins.filter((a) => a.id !== id);
+    persist();
+    return db.admins.length < before;
+  },
+
+  // --- Stations ---
+  listStations() {
+    return db.stations;
+  },
+  findStation(id) {
+    return db.stations.find((s) => s.id === id);
+  },
+  createStation(payload) {
+    const row = {
+      id: randomUUID(),
+      name: payload.name.trim(),
+      district: (payload.district || "").trim(),
+      state: (payload.state || "").trim(),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    db.stations.push(row);
+    persist();
+    return row;
+  },
+  updateStation(id, payload) {
+    const row = this.findStation(id);
+    if (!row) return null;
+    if (payload.name != null) row.name = payload.name.trim();
+    if (payload.district != null) row.district = payload.district.trim();
+    if (payload.state != null) row.state = payload.state.trim();
+    row.updatedAt = nowIso();
+    persist();
+    return row;
+  },
+  deleteStation(id) {
+    const before = db.stations.length;
+    db.stations = db.stations.filter((s) => s.id !== id);
+    persist();
+    return db.stations.length < before;
+  },
+
+  // --- Registrations ---
+  listRegistrations() {
+    return [...db.registrations].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  findRegistration(id) {
+    return db.registrations.find((r) => r.id === id);
+  },
+  createRegistration(payload) {
+    const email = payload.email.trim().toLowerCase();
+    const existing = db.registrations.find(
+      (r) => r.email === email && r.status === "pending"
+    );
+    if (existing) throw new Error("A pending registration already exists for this email");
+    if (db.officers.find((o) => o.email === email)) {
+      throw new Error("An officer account already exists for this email");
+    }
+    const row = {
+      id: randomUUID(),
+      fullName: payload.fullName.trim(),
+      email,
+      phone: (payload.phone || "").trim(),
+      rank: (payload.rank || "").trim(),
+      badgeNumber: (payload.badgeNumber || "").trim(),
+      station: (payload.station || "").trim(),
+      district: (payload.district || "").trim(),
+      state: (payload.state || "").trim(),
+      address: (payload.address || "").trim(),
+      status: "pending",
+      officerId: null,
+      notes: "",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    db.registrations.push(row);
+    persist();
+    return row;
+  },
+  updateRegistration(id, payload) {
+    const row = this.findRegistration(id);
+    if (!row) return null;
+    const fields = [
+      "fullName",
+      "email",
+      "phone",
+      "rank",
+      "badgeNumber",
+      "station",
+      "district",
+      "state",
+      "address",
+      "status",
+      "notes",
+    ];
+    for (const f of fields) {
+      if (payload[f] != null) row[f] = String(payload[f]).trim();
+    }
+    if (row.email) row.email = row.email.toLowerCase();
+    row.updatedAt = nowIso();
+    persist();
+    return row;
+  },
+  deleteRegistration(id) {
+    const before = db.registrations.length;
+    db.registrations = db.registrations.filter((r) => r.id !== id);
+    persist();
+    return db.registrations.length < before;
+  },
+
+  // --- Officers ---
+  listOfficers() {
+    return db.officers.map(publicOfficer);
+  },
+  findOfficerById(id) {
+    return db.officers.find((o) => o.id === id);
+  },
+  findOfficerByLogin(officerId) {
+    return db.officers.find(
+      (o) => o.officerId.toLowerCase() === String(officerId).toLowerCase()
+    );
+  },
+  findOfficerByEmail(email) {
+    return db.officers.find((o) => o.email === String(email).toLowerCase());
+  },
+  async createOfficer(payload) {
+    const officerId = (payload.officerId || generateOfficerId()).trim();
+    if (db.officers.some((o) => o.officerId === officerId)) {
+      throw new Error("Officer ID already exists");
+    }
+    const email = payload.email.trim().toLowerCase();
+    if (this.findOfficerByEmail(email)) {
+      throw new Error("Email already in use");
+    }
+    const password = payload.password || generatePassword();
+    const row = {
+      id: randomUUID(),
+      officerId,
+      fullName: payload.fullName.trim(),
+      email,
+      phone: (payload.phone || "").trim(),
+      rank: (payload.rank || "").trim(),
+      badgeNumber: (payload.badgeNumber || "").trim(),
+      station: (payload.station || "").trim(),
+      district: (payload.district || "").trim(),
+      state: (payload.state || "").trim(),
+      address: (payload.address || "").trim(),
+      status: payload.status || "active",
+      passwordHash: await bcrypt.hash(password, 10),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    db.officers.push(row);
+    persist();
+    return { officer: publicOfficer(row), password };
+  },
+  async updateOfficer(id, payload) {
+    const row = this.findOfficerById(id);
+    if (!row) return null;
+    const fields = [
+      "fullName",
+      "email",
+      "phone",
+      "rank",
+      "badgeNumber",
+      "station",
+      "district",
+      "state",
+      "address",
+      "status",
+      "officerId",
+    ];
+    for (const f of fields) {
+      if (payload[f] != null) row[f] = String(payload[f]).trim();
+    }
+    if (row.email) row.email = row.email.toLowerCase();
+    let password;
+    if (payload.password) {
+      password = payload.password;
+      row.passwordHash = await bcrypt.hash(password, 10);
+    }
+    row.updatedAt = nowIso();
+    persist();
+    return { officer: publicOfficer(row), password };
+  },
+  deleteOfficer(id) {
+    const before = db.officers.length;
+    db.officers = db.officers.filter((o) => o.id !== id);
+    persist();
+    return db.officers.length < before;
+  },
+
+  // --- Drafts ---
+  listDrafts(officerId) {
+    let rows = db.drafts;
+    if (officerId) rows = rows.filter((d) => d.officerId === officerId);
+    return [...rows].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  },
+  findDraft(id) {
+    return db.drafts.find((d) => d.id === id);
+  },
+  upsertDraft(payload) {
+    const existing = this.findDraft(payload.id);
+    if (existing) {
+      Object.assign(existing, payload, { updatedAt: nowIso() });
+      persist();
+      return existing;
+    }
+    const row = { ...payload, createdAt: payload.createdAt || nowIso(), updatedAt: nowIso() };
+    db.drafts.push(row);
+    persist();
+    return row;
+  },
+  deleteDraft(id) {
+    const before = db.drafts.length;
+    db.drafts = db.drafts.filter((d) => d.id !== id);
+    persist();
+    return db.drafts.length < before;
+  },
+
+  addEmail(record) {
+    const row = { id: randomUUID(), createdAt: nowIso(), ...record };
+    db.emails.unshift(row);
+    persist();
+    return row;
+  },
+  listEmails() {
+    return db.emails;
+  },
+  deleteEmail(id) {
+    const before = db.emails.length;
+    db.emails = db.emails.filter((e) => e.id !== id);
+    persist();
+    return db.emails.length < before;
+  },
+
+  generateOfficerId,
+  generatePassword,
+};
+
+module.exports = store;
