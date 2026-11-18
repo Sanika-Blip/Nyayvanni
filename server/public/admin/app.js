@@ -8,6 +8,11 @@ const appView = $("app-view");
 const panel = $("panel");
 const flashEl = $("flash");
 
+// Escape anything that came from user input before it is placed into innerHTML.
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function showFlash(msg, bad = false) {
   flashEl.textContent = msg;
   flashEl.classList.remove("hidden");
@@ -25,15 +30,15 @@ async function api(path, opts = {}) {
     },
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(body.error || `Request failed (${esc(res.status)})`);
   return body;
 }
 
 function field(name, label, value = "", type = "text") {
   if (type === "textarea") {
-    return `<label>${label}<textarea name="${name}" rows="3">${value || ""}</textarea></label>`;
+    return `<label>${label}<textarea name="${name}" rows="3">${esc(value || "")}</textarea></label>`;
   }
-  return `<label>${label}<input name="${name}" type="${type}" value="${value || ""}" /></label>`;
+  return `<label>${label}<input name="${name}" type="${type}" value="${esc(value || "")}" /></label>`;
 }
 
 function closeModal() {
@@ -135,7 +140,7 @@ async function render(tab) {
     if (tab === "admins") return renderAdmins();
     if (tab === "emails") return renderEmails();
   } catch (err) {
-    panel.innerHTML = `<p class="error">${err.message}</p>`;
+    panel.innerHTML = `<p class="error">${esc(err.message)}</p>`;
   }
 }
 
@@ -164,15 +169,15 @@ async function renderRegistrations() {
       <tbody>
         ${data.map((r) => `
           <tr>
-            <td><strong>${r.fullName}</strong><br/><span class="muted">${r.rank || ""} ${r.badgeNumber || ""}</span></td>
-            <td>${r.email}<br/>${r.phone || ""}</td>
-            <td>${r.station || ""}<br/>${r.district || ""}</td>
-            <td><span class="badge ${r.status}">${r.status}</span></td>
+            <td><strong>${esc(r.fullName)}</strong><br/><span class="muted">${esc(r.rank || "")} ${esc(r.badgeNumber || "")}</span></td>
+            <td>${esc(r.email)}<br/>${esc(r.phone || "")}</td>
+            <td>${esc(r.station || "")}<br/>${esc(r.district || "")}</td>
+            <td><span class="badge ${esc(r.status)}">${esc(r.status)}</span></td>
             <td>${actions(`
-              ${r.status === "pending" ? `<button data-approve="${r.id}" class="ok">Approve & email ID</button>
-              <button data-reject="${r.id}" class="warn">Reject</button>` : ""}
-              <button data-edit-reg="${r.id}">Edit</button>
-              <button data-del-reg="${r.id}" class="danger">Delete</button>
+              ${r.status === "pending" ? `<button data-approve="${esc(r.id)}" class="ok">Approve & email ID</button>
+              <button data-reject="${esc(r.id)}" class="warn">Reject</button>` : ""}
+              <button data-edit-reg="${esc(r.id)}">Edit</button>
+              <button data-del-reg="${esc(r.id)}" class="danger">Delete</button>
             `)}</td>
           </tr>`).join("") || `<tr><td colspan="5">No registrations yet.</td></tr>`}
       </tbody>
@@ -219,7 +224,7 @@ function regForm(row) {
 async function approve(id, rows) {
   const row = rows.find((r) => r.id === id);
   openModal("Approve & issue credentials", `
-    <p class="muted">ID and password will be emailed to <strong>${row.email}</strong>.</p>
+    <p class="muted">ID and password will be emailed to <strong>${esc(row.email)}</strong>.</p>
     ${field("officerId", "Officer ID (leave blank to auto-generate)")}
     ${field("password", "Password (leave blank to auto-generate)")}
     <div class="toolbar">
@@ -233,7 +238,7 @@ async function approve(id, rows) {
     const v = formValues(e.target);
     const res = await api("/api/admin/registrations/" + id + "/approve", { method: "POST", body: JSON.stringify(v) });
     closeModal();
-    showFlash(`${res.message} Officer ID: ${res.data.officerId}  Password: ${res.data.password}`);
+    showFlash(`${esc(res.message)} Officer ID: ${esc(res.data.officerId)}  Password: ${esc(res.data.password)}`);
     render("registrations");
   };
 }
@@ -254,14 +259,14 @@ async function renderOfficers() {
       <tbody>
         ${data.map((o) => `
           <tr>
-            <td><code>${o.officerId}</code></td>
-            <td>${o.fullName}<br/><span class="muted">${o.rank || ""}</span></td>
-            <td>${o.email}<br/>${o.phone || ""}</td>
-            <td>${o.station || ""} / ${o.district || ""}</td>
-            <td><span class="badge ${o.status}">${o.status}</span></td>
+            <td><code>${esc(o.officerId)}</code></td>
+            <td>${esc(o.fullName)}<br/><span class="muted">${esc(o.rank || "")}</span></td>
+            <td>${esc(o.email)}<br/>${esc(o.phone || "")}</td>
+            <td>${esc(o.station || "")} / ${esc(o.district || "")}</td>
+            <td><span class="badge ${esc(o.status)}">${esc(o.status)}</span></td>
             <td>${actions(`
-              <button data-edit-off="${o.id}">Edit</button>
-              <button data-del-off="${o.id}" class="danger">Delete</button>
+              <button data-edit-off="${esc(o.id)}">Edit</button>
+              <button data-del-off="${esc(o.id)}" class="danger">Delete</button>
             `)}</td>
           </tr>`).join("") || `<tr><td colspan="6">No officers yet.</td></tr>`}
       </tbody>
@@ -309,14 +314,14 @@ async function renderDrafts() {
       <tbody>
         ${data.map((d) => `
           <tr>
-            <td>${d.reportNumber || d.id}</td>
-            <td>${d.officerId || ""}<br/>${d.officerName || ""}</td>
-            <td>${d.complainantName || ""}</td>
-            <td>${d.natureOfOffence || d.summary || ""}</td>
-            <td><span class="badge ${d.status || "draft"}">${d.status || "draft"}</span></td>
+            <td>${esc(d.reportNumber || d.id)}</td>
+            <td>${esc(d.officerId || "")}<br/>${esc(d.officerName || "")}</td>
+            <td>${esc(d.complainantName || "")}</td>
+            <td>${esc(d.natureOfOffence || d.summary || "")}</td>
+            <td><span class="badge ${esc(d.status || "draft")}">${esc(d.status || "draft")}</span></td>
             <td>${actions(`
-              <button data-edit-d="${d.id}">Edit</button>
-              <button data-del-d="${d.id}" class="danger">Delete</button>
+              <button data-edit-d="${esc(d.id)}">Edit</button>
+              <button data-del-d="${esc(d.id)}" class="danger">Delete</button>
             `)}</td>
           </tr>`).join("") || `<tr><td colspan="6">No FIR drafts.</td></tr>`}
       </tbody>
@@ -370,8 +375,8 @@ async function renderStations() {
       <tbody>
         ${data.map((s) => `
           <tr>
-            <td>${s.name}</td><td>${s.district || ""}</td><td>${s.state || ""}</td>
-            <td>${actions(`<button data-edit-st="${s.id}">Edit</button><button data-del-st="${s.id}" class="danger">Delete</button>`)}</td>
+            <td>${esc(s.name)}</td><td>${esc(s.district || "")}</td><td>${esc(s.state || "")}</td>
+            <td>${actions(`<button data-edit-st="${esc(s.id)}">Edit</button><button data-del-st="${esc(s.id)}" class="danger">Delete</button>`)}</td>
           </tr>`).join("")}
       </tbody>
     </table>
@@ -409,8 +414,8 @@ async function renderAdmins() {
       <tbody>
         ${data.map((a) => `
           <tr>
-            <td>${a.name}</td><td>${a.username}</td><td>${a.email}</td>
-            <td>${actions(`<button data-edit-ad="${a.id}">Edit</button><button data-del-ad="${a.id}" class="danger">Delete</button>`)}</td>
+            <td>${esc(a.name)}</td><td>${esc(a.username)}</td><td>${esc(a.email)}</td>
+            <td>${actions(`<button data-edit-ad="${esc(a.id)}">Edit</button><button data-del-ad="${esc(a.id)}" class="danger">Delete</button>`)}</td>
           </tr>`).join("")}
       </tbody>
     </table>
@@ -451,10 +456,10 @@ async function renderEmails() {
         ${data.map((e) => `
           <tr>
             <td>${new Date(e.createdAt).toLocaleString()}</td>
-            <td>${e.to}</td>
-            <td>${e.subject}</td>
-            <td>${e.delivered ? "Yes" : "Log only"}</td>
-            <td>${actions(`<button data-view-e="${e.id}">View</button><button data-del-e="${e.id}" class="danger">Delete</button>`)}</td>
+            <td>${esc(e.to)}</td>
+            <td>${esc(e.subject)}</td>
+            <td>${esc(e.delivered ? "Yes" : "Log only")}</td>
+            <td>${actions(`<button data-view-e="${esc(e.id)}">View</button><button data-del-e="${esc(e.id)}" class="danger">Delete</button>`)}</td>
           </tr>`).join("") || `<tr><td colspan="5">No emails yet.</td></tr>`}
       </tbody>
     </table>
@@ -462,7 +467,7 @@ async function renderEmails() {
   panel.querySelectorAll("[data-view-e]").forEach((b) => {
     b.onclick = () => {
       const e = data.find((x) => x.id === b.dataset.viewE);
-      openModal("Email", `<pre>${(e.text || "").replace(/</g, "&lt;")}</pre><button type="button" class="ghost" id="cancel">Close</button>`);
+      openModal("Email", `<pre>${esc(e.text || "")}</pre><button type="button" class="ghost" id="cancel">Close</button>`);
       $("cancel").onclick = closeModal;
     };
   });

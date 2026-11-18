@@ -85,9 +85,9 @@ class _SplashScreenState extends State<SplashScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFFEEF3F8),
-              Color(0xFFE8F0F8),
-              Color(0xFFF0EDF5),
+              Color(0xFFF2F4F7),
+              Color(0xFFE9EDF2),
+              Color(0xFFF2F4F7),
             ],
           ),
         ),
@@ -177,7 +177,7 @@ class _SplashScreenState extends State<SplashScreen>
                     Text(
                       'Speak your complaint.',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.nunito(
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         color: AppTheme.textMuted,
                         letterSpacing: 0.5,
@@ -187,7 +187,7 @@ class _SplashScreenState extends State<SplashScreen>
                     Text(
                       'Get a structured FIR draft.',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.nunito(
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         color: AppTheme.textMuted,
                         letterSpacing: 0.5,
@@ -209,7 +209,7 @@ class _SplashScreenState extends State<SplashScreen>
       height: 100,
       decoration: BoxDecoration(
         gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(6),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primary.withOpacity(0.35),
@@ -233,7 +233,7 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
           const Icon(
-            Icons.mic,
+            Icons.local_police,
             color: Colors.white,
             size: 44,
           ),
@@ -247,7 +247,7 @@ class _SplashScreenState extends State<SplashScreen>
       children: [
         Text(
           'NyayVanni',
-          style: GoogleFonts.playfairDisplay(
+          style: GoogleFonts.inter(
             fontSize: 38,
             fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary,
@@ -257,7 +257,7 @@ class _SplashScreenState extends State<SplashScreen>
         const SizedBox(height: 8),
         Text(
           'न्यायवाणी',
-          style: GoogleFonts.nunito(
+          style: GoogleFonts.inter(
             fontSize: 20,
             fontWeight: FontWeight.w400,
             color: AppTheme.textSecondary,
@@ -269,11 +269,11 @@ class _SplashScreenState extends State<SplashScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
             color: AppTheme.primaryLight.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             'Voice-to-text FIR drafting',
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 13,
               color: AppTheme.primaryDark,
               fontWeight: FontWeight.w500,
@@ -303,7 +303,7 @@ class _SplashScreenState extends State<SplashScreen>
         const SizedBox(height: 12),
         Text(
           'Preparing your FIR assistant...',
-          style: GoogleFonts.nunito(
+          style: GoogleFonts.inter(
             fontSize: 12,
             color: AppTheme.textMuted,
           ),

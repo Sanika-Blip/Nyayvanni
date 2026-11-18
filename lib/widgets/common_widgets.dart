@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../models/report_model.dart';
 
-// ─── Glassmorphism Card ──────────────────────────────────────────────────────
+// ─── Card ──────────────────────────────────────────────────────
 
 class GlassCard extends StatelessWidget {
   final Widget child;
@@ -16,7 +16,7 @@ class GlassCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding,
-    this.borderRadius = 20,
+    this.borderRadius = 8,
     this.color,
     this.boxShadow,
   });
@@ -31,21 +31,12 @@ class GlassCard extends StatelessWidget {
         boxShadow: boxShadow ??
             [
               BoxShadow(
-                color: AppTheme.primary.withOpacity(0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-                spreadRadius: 0,
-              ),
-              BoxShadow(
-                color: Colors.white.withOpacity(0.9),
-                blurRadius: 1,
-                offset: const Offset(0, -1),
+                color: AppTheme.primaryDark.withOpacity(0.06),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
-        border: Border.all(
-          color: Colors.white.withOpacity(0.8),
-          width: 1.5,
-        ),
+        border: Border.all(color: AppTheme.divider, width: 1),
       ),
       child: child,
     );
@@ -91,7 +82,7 @@ class StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -100,7 +91,7 @@ class StatusBadge extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: textColor,
@@ -129,7 +120,7 @@ class ReportTypeBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.nunito(
+        style: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: AppTheme.primaryDark,
@@ -163,7 +154,7 @@ class SectionHeader extends StatelessWidget {
           children: [
             Text(
               title,
-              style: GoogleFonts.playfairDisplay(
+              style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary,
@@ -172,7 +163,7 @@ class SectionHeader extends StatelessWidget {
             if (subtitle != null)
               Text(
                 subtitle!,
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 13,
                   color: AppTheme.textMuted,
                 ),
@@ -310,14 +301,14 @@ class StatCard extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(height: 12),
           Text(
             value,
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -326,7 +317,7 @@ class StatCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 12,
               color: AppTheme.textMuted,
               fontWeight: FontWeight.w500,
@@ -372,7 +363,7 @@ class NyayaTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: GoogleFonts.nunito(
+          style: GoogleFonts.inter(
             fontSize: 13,
             fontWeight: FontWeight.w600,
             color: AppTheme.textSecondary,
@@ -387,14 +378,14 @@ class NyayaTextField extends StatelessWidget {
           maxLines: obscureText ? 1 : maxLines,
           obscureText: obscureText,
           keyboardType: keyboardType,
-          style: GoogleFonts.nunito(
+          style: GoogleFonts.inter(
             fontSize: 14,
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.nunito(
+            hintStyle: GoogleFonts.inter(
               fontSize: 14,
               color: AppTheme.textMuted,
             ),
@@ -404,18 +395,18 @@ class NyayaTextField extends StatelessWidget {
             filled: true,
             fillColor: AppTheme.surfaceVariant,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide(
                 color: AppTheme.divider,
                 width: 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(6),
               borderSide: const BorderSide(
                 color: AppTheme.primary,
                 width: 1.5,
@@ -455,7 +446,7 @@ class LanguageChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? AppTheme.primary : AppTheme.surfaceVariant,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? AppTheme.primary : AppTheme.divider,
             width: 1.5,
@@ -466,7 +457,7 @@ class LanguageChip extends StatelessWidget {
           children: [
             Text(
               language.nativeName,
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: isSelected ? Colors.white : AppTheme.textPrimary,
@@ -474,7 +465,7 @@ class LanguageChip extends StatelessWidget {
             ),
             Text(
               language.name,
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 10,
                 color: isSelected
                     ? Colors.white.withOpacity(0.8)

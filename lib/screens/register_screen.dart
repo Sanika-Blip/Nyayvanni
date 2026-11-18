@@ -84,7 +84,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(content: Text(ApiService.describe(e))),
       );
     }
   }
@@ -96,14 +96,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: Text('Officer registration',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           Text(
             'Your request goes to the admin panel. After approval, your officer ID and password are sent to this email.',
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
                 fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 18),

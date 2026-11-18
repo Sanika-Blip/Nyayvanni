@@ -79,9 +79,11 @@ class _NewReportScreenState extends State<NewReportScreen>
 
   Future<void> _initSpeech() async {
     final status = await Permission.microphone.request();
+    if (!mounted) return;
     if (status.isGranted) {
       _speechAvailable = await _speech.initialize(
         onError: (error) {
+          if (!mounted) return;
           setState(() {
             _statusText = 'Error: ${error.errorMsg}';
             _isRecording = false;
@@ -94,7 +96,7 @@ class _NewReportScreenState extends State<NewReportScreen>
           }
         },
       );
-      setState(() {});
+      if (mounted) setState(() {});
     } else {
       setState(() => _statusText = 'Microphone permission required');
     }
@@ -142,8 +144,18 @@ class _NewReportScreenState extends State<NewReportScreen>
     );
   }
 
+  bool _stopping = false;
+
   Future<void> _stopRecording() async {
-    await _speech.stop();
+    // The speech engine can report "done" while the user taps stop; only stop once.
+    if (_stopping) return;
+    _stopping = true;
+    try {
+      await _speech.stop();
+    } finally {
+      _stopping = false;
+    }
+    if (!mounted) return;
     _pulseController.stop();
     _pulseController.reset();
 
@@ -165,6 +177,7 @@ class _NewReportScreenState extends State<NewReportScreen>
       return;
     }
 
+    if (_isProcessing) return;
     setState(() => _isProcessing = true);
 
     final provider = context.read<ReportProvider>();
@@ -181,9 +194,17 @@ class _NewReportScreenState extends State<NewReportScreen>
       badgeNumber: officer?.badgeNumber ?? officer?.officerId ?? '',
     );
 
-    provider.updateTranscript(_transcriptCtrl.text, _confidence);
-    await provider.generateStructuredReport(_transcriptCtrl.text);
-    await provider.saveReport(status: ReportStatus.draft);
+    try {
+      provider.updateTranscript(_transcriptCtrl.text, _confidence);
+      await provider.generateStructuredReport(_transcriptCtrl.text);
+      await provider.saveReport(status: ReportStatus.draft);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        _showSnackBar('Could not generate the report. Please try again.');
+      }
+      return;
+    }
 
     if (mounted) {
       setState(() => _isProcessing = false);
@@ -197,10 +218,10 @@ class _NewReportScreenState extends State<NewReportScreen>
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.nunito()),
+        content: Text(message, style: GoogleFonts.inter()),
         backgroundColor: AppTheme.primaryDark,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -268,7 +289,7 @@ class _NewReportScreenState extends State<NewReportScreen>
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(6),
             boxShadow: [
               BoxShadow(
                 color: AppTheme.primary.withOpacity(0.1),
@@ -284,7 +305,7 @@ class _NewReportScreenState extends State<NewReportScreen>
       ),
       title: Text(
         'New FIR draft',
-        style: GoogleFonts.playfairDisplay(
+        style: GoogleFonts.inter(
           fontSize: 20,
           fontWeight: FontWeight.w700,
           color: AppTheme.textPrimary,
@@ -328,7 +349,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                                   color: Colors.white, size: 16)
                               : Text(
                                   '${i + 1}',
-                                  style: GoogleFonts.nunito(
+                                  style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: isActive
@@ -341,7 +362,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                       const SizedBox(height: 4),
                       Text(
                         steps[i],
-                        style: GoogleFonts.nunito(
+                        style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight:
                               isActive ? FontWeight.w700 : FontWeight.w400,
@@ -381,7 +402,7 @@ class _NewReportScreenState extends State<NewReportScreen>
         children: [
           Text(
             'Your details (optional)',
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -390,7 +411,7 @@ class _NewReportScreenState extends State<NewReportScreen>
           const SizedBox(height: 6),
           Text(
             'You can skip this and we will try to pick your name from what you say.',
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 13,
               color: AppTheme.textMuted,
             ),
@@ -438,7 +459,7 @@ class _NewReportScreenState extends State<NewReportScreen>
         children: [
           Text(
             'Select Language',
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -447,7 +468,7 @@ class _NewReportScreenState extends State<NewReportScreen>
           const SizedBox(height: 4),
           Text(
             'Choose Hindi, Marathi, or English — or let the device detect it',
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 13,
               color: AppTheme.textMuted,
             ),
@@ -479,7 +500,7 @@ class _NewReportScreenState extends State<NewReportScreen>
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(8),
           ),
         ),
       ),
@@ -499,7 +520,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryLight.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -509,7 +530,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                     const SizedBox(width: 6),
                     Text(
                       '${_selectedLanguage.nativeName} • FIR draft',
-                      style: GoogleFonts.nunito(
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.primary,
@@ -535,7 +556,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               Text(
                 _statusText,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 14,
                   color: _isRecording
                       ? AppTheme.primaryDark
@@ -669,7 +690,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               const SizedBox(width: 8),
               Text(
                 _isRecording ? 'Live Transcript' : 'Recorded Transcript',
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textSecondary,
@@ -688,7 +709,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                   ),
                   child: Text(
                     '${(_confidence * 100).toInt()}% accurate',
-                    style: GoogleFonts.nunito(
+                    style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: (_confidence > 0 && _confidence < 0.7)
@@ -705,12 +726,12 @@ class _NewReportScreenState extends State<NewReportScreen>
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppTheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: TextField(
               controller: _transcriptCtrl,
               maxLines: null,
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 14,
                 color: AppTheme.textPrimary,
                 height: 1.6,
@@ -736,7 +757,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                     foregroundColor: AppTheme.textSecondary,
                     side: const BorderSide(color: AppTheme.divider),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                   ),
                 ),
@@ -752,7 +773,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                   label: const Text('Review text'),
                   style: ElevatedButton.styleFrom(
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                   ),
                 ),
@@ -773,7 +794,7 @@ class _NewReportScreenState extends State<NewReportScreen>
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: AppTheme.primaryGradient,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
                 color: AppTheme.primary.withOpacity(0.3),
@@ -792,7 +813,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                   const SizedBox(width: 8),
                   Text(
                     'Transcript ready',
-                    style: GoogleFonts.nunito(
+                    style: GoogleFonts.inter(
                       fontSize: 13,
                       color: Colors.white70,
                       fontWeight: FontWeight.w600,
@@ -803,7 +824,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               const SizedBox(height: 8),
               Text(
                 'Review & Generate',
-                style: GoogleFonts.playfairDisplay(
+                style: GoogleFonts.inter(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
@@ -812,7 +833,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               const SizedBox(height: 4),
               Text(
                 'Your speech has been converted to text. Check it, then generate the FIR draft.',
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 13,
                   color: Colors.white70,
                   height: 1.5,
@@ -830,7 +851,7 @@ class _NewReportScreenState extends State<NewReportScreen>
             children: [
               Text(
                 'Report Summary',
-                style: GoogleFonts.playfairDisplay(
+                style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -873,7 +894,7 @@ class _NewReportScreenState extends State<NewReportScreen>
             children: [
               Text(
                 'Recorded Transcript',
-                style: GoogleFonts.playfairDisplay(
+                style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -884,13 +905,13 @@ class _NewReportScreenState extends State<NewReportScreen>
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   _transcriptCtrl.text.isNotEmpty
                       ? _transcriptCtrl.text
                       : 'No transcript available',
-                  style: GoogleFonts.nunito(
+                  style: GoogleFonts.inter(
                     fontSize: 14,
                     color: AppTheme.textPrimary,
                     height: 1.6,
@@ -931,7 +952,7 @@ class _NewReportScreenState extends State<NewReportScreen>
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 18),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
           ),
@@ -945,12 +966,12 @@ class _NewReportScreenState extends State<NewReportScreen>
               padding: const EdgeInsets.symmetric(vertical: 16),
               side: const BorderSide(color: AppTheme.divider),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
             child: Text(
               'Re-record',
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppTheme.textSecondary,
@@ -986,7 +1007,7 @@ class _ReviewRow extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             label,
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 13,
               color: AppTheme.textMuted,
             ),
@@ -994,7 +1015,7 @@ class _ReviewRow extends StatelessWidget {
           const Spacer(),
           Text(
             value,
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: valueColor ?? AppTheme.textPrimary,

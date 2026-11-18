@@ -85,7 +85,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: Text('My profile',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -95,9 +95,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Officer ID: ${u.officerId}',
-                    style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                 Text(u.email,
-                    style: GoogleFonts.nunito(color: AppTheme.textMuted)),
+                    style: GoogleFonts.inter(color: AppTheme.textMuted)),
                 const SizedBox(height: 16),
                 NyayaTextField(label: 'Full name', controller: _name),
                 const SizedBox(height: 12),

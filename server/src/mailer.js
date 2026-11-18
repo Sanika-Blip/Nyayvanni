@@ -1,14 +1,18 @@
 const nodemailer = require("nodemailer");
 const store = require("./store");
 
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function credentialsHtml({ fullName, officerId, password }) {
   return `
     <div style="font-family:Georgia,serif;color:#2D3748;line-height:1.6">
       <h2>NyayVanni officer account</h2>
-      <p>Hello ${fullName},</p>
+      <p>Hello ${esc(fullName)},</p>
       <p>Your registration has been approved. Use these credentials to sign in to the NyayVanni app.</p>
-      <p><strong>Officer ID:</strong> ${officerId}<br/>
-      <strong>Password:</strong> ${password}</p>
+      <p><strong>Officer ID:</strong> ${esc(officerId)}<br/>
+      <strong>Password:</strong> ${esc(password)}</p>
       <p>Please change your password after first login if the admin provided a temporary password.</p>
       <p>— NyayVanni Admin</p>
     </div>
@@ -43,6 +47,11 @@ async function sendMail({ to, subject, html, text }) {
     record.error = "SMTP not configured — stored in email log for demo";
   }
 
+  // Once actually delivered, don't keep the plaintext password in the log.
+  if (record.delivered) {
+    record.html = "(credentials redacted after delivery)";
+    record.text = "(credentials redacted after delivery)";
+  }
   const saved = store.addEmail(record);
   console.log(`[email] to=${to} subject=${subject} delivered=${record.delivered}`);
   return saved;

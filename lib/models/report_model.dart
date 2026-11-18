@@ -113,7 +113,8 @@ class PoliceReport {
 
   static String _generateReportNumber() {
     final now = DateTime.now();
-    return 'NV-FIR-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${(1000 + now.millisecond).toString()}';
+    final suffix = const Uuid().v4().replaceAll('-', '').substring(0, 6).toUpperCase();
+    return 'NV-FIR-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-$suffix';
   }
 
   Map<String, dynamic> toJson() => {

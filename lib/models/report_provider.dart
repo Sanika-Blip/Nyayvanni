@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,10 +8,12 @@ import '../services/fir_parser.dart';
 
 class ReportProvider extends ChangeNotifier {
   static const _storageKey = 'nyayvanni_fir_drafts';
+  static const _pendingDeletesKey = 'nyayvanni_pending_deletes';
 
   List<PoliceReport> _reports = [];
   PoliceReport? _currentReport;
   bool _isLoading = false;
+  Timer? _syncTimer;
 
   List<PoliceReport> get reports => _reports;
   PoliceReport? get currentReport => _currentReport;
@@ -25,37 +28,79 @@ class ReportProvider extends ChangeNotifier {
   List<PoliceReport> get submittedReports =>
       _reports.where((r) => r.status == ReportStatus.submitted).toList();
 
+  Future<List<PoliceReport>> _readLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_storageKey);
+      if (raw == null || raw.isEmpty) return [];
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .map((e) => PoliceReport.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Set<String>> _readPendingDeletes() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_pendingDeletesKey) ?? []).toSet();
+  }
+
+  Future<void> _writePendingDeletes(Set<String> ids) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_pendingDeletesKey, ids.toList());
+  }
+
+  /// Loads reports from the server and merges them with anything saved on this
+  /// device. Reports created or edited offline are kept and uploaded, never
+  /// overwritten by an older server copy.
   Future<void> loadDrafts() async {
     _isLoading = true;
     notifyListeners();
+
+    final local = _reports.isNotEmpty ? [..._reports] : await _readLocal();
+
+    if (ApiService.token == null) {
+      _reports = local;
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
     try {
-      if (ApiService.token != null) {
-        _reports = await ApiService.fetchDrafts();
-        await _persist();
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        final raw = prefs.getString(_storageKey);
-        if (raw != null && raw.isNotEmpty) {
-          final list = jsonDecode(raw) as List<dynamic>;
-          _reports = list
-              .map((e) => PoliceReport.fromJson(Map<String, dynamic>.from(e)))
-              .toList();
+      // Finish deletions that could not reach the server earlier.
+      var pending = await _readPendingDeletes();
+      for (final id in pending.toList()) {
+        if (await ApiService.deleteDraft(id)) pending.remove(id);
+      }
+      await _writePendingDeletes(pending);
+
+      final server = await ApiService.fetchDrafts();
+      final byId = <String, PoliceReport>{
+        for (final r in server)
+          if (!pending.contains(r.id)) r.id: r,
+      };
+      final toUpload = <PoliceReport>[];
+      for (final l in local) {
+        if (pending.contains(l.id)) continue;
+        final s = byId[l.id];
+        if (s == null || l.updatedAt.isAfter(s.updatedAt)) {
+          byId[l.id] = l;
+          toUpload.add(l);
         }
+      }
+      _reports = byId.values.toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      await _persist();
+      for (final r in toUpload) {
+        await ApiService.upsertDraft(r);
       }
     } catch (_) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final raw = prefs.getString(_storageKey);
-        if (raw != null && raw.isNotEmpty) {
-          final list = jsonDecode(raw) as List<dynamic>;
-          _reports = list
-              .map((e) => PoliceReport.fromJson(Map<String, dynamic>.from(e)))
-              .toList();
-        }
-      } catch (_) {
-        _reports = [];
-      }
+      // Offline or server error: keep what is on the device.
+      _reports = local;
     }
+
     _isLoading = false;
     notifyListeners();
   }
@@ -66,6 +111,35 @@ class ReportProvider extends ChangeNotifier {
       _storageKey,
       jsonEncode(_reports.map((r) => r.toJson()).toList()),
     );
+  }
+
+  /// Clears everything held for the signed-in officer (called on sign-out so
+  /// the next officer on this device never sees these reports).
+  Future<void> clear() async {
+    _syncTimer?.cancel();
+    _reports = [];
+    _currentReport = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storageKey);
+    await prefs.remove(_pendingDeletesKey);
+    notifyListeners();
+  }
+
+  /// Uploads edits shortly after the officer stops typing.
+  void _scheduleSync() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer(const Duration(milliseconds: 800), () {
+      final r = _currentReport;
+      if (r != null && _reports.any((x) => x.id == r.id)) {
+        ApiService.upsertDraft(r);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
   }
 
   void createNewReport({
@@ -143,6 +217,7 @@ class ReportProvider extends ChangeNotifier {
     _currentReport!.updatedAt = DateTime.now();
     notifyListeners();
     _persist();
+    _scheduleSync();
   }
 
   void updateDraftFields({
@@ -172,6 +247,7 @@ class ReportProvider extends ChangeNotifier {
     r.updatedAt = DateTime.now();
     notifyListeners();
     _persist();
+    _scheduleSync();
   }
 
   Future<void> saveReport({ReportStatus status = ReportStatus.completed}) async {
@@ -188,8 +264,9 @@ class ReportProvider extends ChangeNotifier {
     }
 
     await _persist();
-    await ApiService.upsertDraft(_currentReport!);
     notifyListeners();
+    // A failed upload is retried automatically the next time drafts load.
+    await ApiService.upsertDraft(_currentReport!);
   }
 
   Future<void> submitReport(String reportId) async {
@@ -201,8 +278,8 @@ class ReportProvider extends ChangeNotifier {
         _currentReport!.status = ReportStatus.submitted;
       }
       await _persist();
-      await ApiService.upsertDraft(_reports[idx]);
       notifyListeners();
+      await ApiService.upsertDraft(_reports[idx]);
     }
   }
 
@@ -212,7 +289,13 @@ class ReportProvider extends ChangeNotifier {
       _currentReport = null;
     }
     await _persist();
-    await ApiService.deleteDraft(reportId);
     notifyListeners();
+    final deleted = await ApiService.deleteDraft(reportId);
+    if (!deleted && ApiService.token != null) {
+      // Remember the delete so it is retried and the draft does not reappear.
+      final pending = await _readPendingDeletes();
+      pending.add(reportId);
+      await _writePendingDeletes(pending);
+    }
   }
 }

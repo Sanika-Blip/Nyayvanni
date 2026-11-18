@@ -2,7 +2,6 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
 const { parseTranscript } = require("./parser");
 const store = require("./store");
 const { sign, authRequired, checkPassword } = require("./auth");
@@ -10,8 +9,25 @@ const { sendOfficerCredentials } = require("./mailer");
 
 const app = express();
 const port = process.env.PORT || 3000;
-const mongoUri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/nyayvanni";
-let mongoReady = false;
+
+// Minimal in-memory rate limiter (per IP + route) for login and public registration.
+function rateLimit({ windowMs, max }) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const key = req.ip + req.path;
+    const now = Date.now();
+    const recent = (hits.get(key) || []).filter((t) => now - t < windowMs);
+    if (recent.length >= max) {
+      return res.status(429).json({ error: "Too many attempts. Please wait a few minutes and try again." });
+    }
+    recent.push(now);
+    hits.set(key, recent);
+    if (hits.size > 5000) hits.clear();
+    next();
+  };
+}
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const registerLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10 });
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -20,7 +36,7 @@ app.use("/admin", express.static(path.join(__dirname, "../public/admin")));
 app.get("/", (_req, res) => res.redirect("/admin"));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "nyayvanni-api", mongo: mongoReady, store: true });
+  res.json({ ok: true, service: "nyayvanni-api", store: true });
 });
 
 app.get("/api/stations", (_req, res) => {
@@ -33,7 +49,7 @@ app.post("/api/parse", (req, res) => {
 });
 
 // ----- Public: police registration -----
-app.post("/api/registrations", (req, res) => {
+app.post("/api/registrations", registerLimiter, (req, res) => {
   try {
     const b = req.body || {};
     if (!b.fullName || !b.email) {
@@ -51,7 +67,7 @@ app.post("/api/registrations", (req, res) => {
 });
 
 // ----- Auth -----
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", loginLimiter, async (req, res) => {
   const { officerId, password } = req.body || {};
   if (!officerId || !password) {
     return res.status(400).json({ error: "Officer ID and password are required" });
@@ -69,7 +85,7 @@ app.post("/api/auth/login", async (req, res) => {
   });
 });
 
-app.post("/api/admin/login", async (req, res) => {
+app.post("/api/admin/login", loginLimiter, async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
@@ -100,7 +116,7 @@ app.get("/api/me", authRequired(["officer", "admin"]), (req, res) => {
 
 app.put("/api/me", authRequired(["officer"]), async (req, res) => {
   try {
-    const result = await store.updateOfficer(req.user.id, req.body || {});
+    const result = await store.updateOwnProfile(req.user.id, req.body || {});
     if (!result) return res.status(404).json({ error: "Not found" });
     res.json({ data: result.officer });
   } catch (err) {
@@ -136,6 +152,10 @@ app.post("/api/drafts", authRequired(["officer", "admin"]), (req, res) => {
       if (!body.district) body.district = officer.district;
     }
   }
+  const existing = store.findDraft(body.id);
+  if (existing && req.user.role === "officer" && existing.officerId !== req.user.officerId) {
+    return res.status(403).json({ error: "Not allowed" });
+  }
   const saved = store.upsertDraft(body);
   res.json({ ok: true, stored: true, data: saved });
 });
@@ -146,7 +166,14 @@ app.put("/api/drafts/:id", authRequired(["officer", "admin"]), (req, res) => {
   if (req.user.role === "officer" && existing.officerId !== req.user.officerId) {
     return res.status(403).json({ error: "Not allowed" });
   }
-  const saved = store.upsertDraft({ ...existing, ...req.body, id: req.params.id });
+  const update = { ...existing, ...req.body, id: req.params.id };
+  if (req.user.role === "officer") {
+    // Officers cannot reassign a draft to someone else.
+    update.officerId = existing.officerId;
+    update.officerName = existing.officerName;
+    update.badgeNumber = existing.badgeNumber;
+  }
+  const saved = store.upsertDraft(update);
   res.json({ ok: true, data: saved });
 });
 
@@ -355,23 +382,27 @@ app.delete("/api/admin/emails/:id", authRequired(["admin"]), (req, res) => {
   res.json({ ok: true });
 });
 
+// JSON/body errors and anything unexpected return JSON, not an HTML stack page.
+app.use((err, _req, res, _next) => {
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) console.error(err);
+  res.status(status).json({ error: status >= 500 ? "Server error" : "Invalid request" });
+});
+
 async function start() {
   store.load();
   await store.seedIfNeeded();
 
-  try {
-    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 1500 });
-    mongoReady = true;
-    console.log("MongoDB connected");
-  } catch (err) {
-    console.warn("MongoDB unavailable — using local data store:", err.message);
-  }
-
   app.listen(port, () => {
     console.log(`NyayVanni API  http://127.0.0.1:${port}`);
     console.log(`Admin panel    http://127.0.0.1:${port}/admin`);
-    console.log("Default admin  username=admin  password=Admin@12345");
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn("Using the built-in default admin password. Set ADMIN_PASSWORD in .env and change it after first sign-in.");
+    }
   });
 }
 
-start();
+start().catch((err) => {
+  console.error("Failed to start:", err);
+  process.exit(1);
+});

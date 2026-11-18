@@ -79,7 +79,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(6),
             boxShadow: [
               BoxShadow(
                 color: AppTheme.primary.withOpacity(0.1),
@@ -95,7 +95,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       ),
       title: Text(
         report.reportNumber,
-        style: GoogleFonts.nunito(
+        style: GoogleFonts.inter(
           fontSize: 16,
           fontWeight: FontWeight.w700,
           color: AppTheme.textPrimary,
@@ -109,7 +109,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(6),
                 boxShadow: [
                   BoxShadow(
                     color: AppTheme.primary.withOpacity(0.1),
@@ -134,7 +134,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primary.withOpacity(0.3),
@@ -152,7 +152,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(Icons.description_outlined,
                     color: Colors.white, size: 22),
@@ -164,7 +164,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   children: [
                     Text(
                       'FIR draft',
-                      style: GoogleFonts.nunito(
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         color: Colors.white70,
                         fontWeight: FontWeight.w500,
@@ -172,7 +172,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     ),
                     Text(
                       report.reportNumber,
-                      style: GoogleFonts.playfairDisplay(
+                      style: GoogleFonts.inter(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
@@ -225,7 +225,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 const SizedBox(width: 6),
                 Text(
                   'AI Accuracy: ${(report.confidenceScore * 100).toInt()}%',
-                  style: GoogleFonts.nunito(
+                  style: GoogleFonts.inter(
                     fontSize: 12,
                     color: Colors.white70,
                     fontWeight: FontWeight.w600,
@@ -259,7 +259,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         children: [
           Text(
             'Report Information',
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -311,7 +311,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppTheme.primaryLight.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: AppTheme.primaryLight.withOpacity(0.5),
                 ),
@@ -328,7 +328,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       children: [
                         Text(
                           'Summary',
-                          style: GoogleFonts.nunito(
+                          style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.primary,
@@ -337,7 +337,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         const SizedBox(height: 4),
                         Text(
                           report.summary,
-                          style: GoogleFonts.nunito(
+                          style: GoogleFonts.inter(
                             fontSize: 13,
                             color: AppTheme.textSecondary,
                             height: 1.5,
@@ -368,7 +368,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   Expanded(
                     child: Text(
                       'Structured FIR draft',
-                      style: GoogleFonts.playfairDisplay(
+                      style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
@@ -390,7 +390,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         const SizedBox(width: 4),
                         Text(
                           'AI filled',
-                          style: GoogleFonts.nunito(
+                          style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.success,
@@ -404,7 +404,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 'Edit any field before you export. This is a draft, not a filed FIR.',
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 12,
                   color: AppTheme.textMuted,
                 ),
@@ -420,7 +420,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   ),
                   child: Text(
                     'Low transcription confidence (${(report.confidenceScore * 100).toInt()}%). Please check highlighted sections.',
-                    style: GoogleFonts.nunito(
+                    style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF8A6D1B),
@@ -455,7 +455,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         children: [
           Text(
             'Original Transcript',
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -467,11 +467,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppTheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               report.rawTranscript,
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 14,
                 color: AppTheme.textSecondary,
                 height: 1.6,
@@ -503,7 +503,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ),
@@ -521,7 +521,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 backgroundColor: AppTheme.secondary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+                    borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ),
@@ -540,7 +540,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               side: const BorderSide(color: AppTheme.divider),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ),
@@ -548,11 +548,26 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
+  /// The default PDF fonts cannot draw Devanagari, so Hindi/Marathi text would
+  /// come out blank. Load Noto fonts (Latin + Devanagari) instead.
+  Future<pw.ThemeData> _pdfTheme() async {
+    final regular = await PdfGoogleFonts.notoSansRegular();
+    final bold = await PdfGoogleFonts.notoSansBold();
+    final devRegular = await PdfGoogleFonts.notoSansDevanagariRegular();
+    final devBold = await PdfGoogleFonts.notoSansDevanagariBold();
+    return pw.ThemeData.withFont(
+      base: regular,
+      bold: bold,
+      fontFallback: [devRegular, devBold],
+    );
+  }
+
   Future<void> _generatePdf(PoliceReport report) async {
     setState(() => _isGeneratingPdf = true);
 
     try {
-      final pdf = pw.Document();
+      final theme = await _pdfTheme();
+      final pdf = pw.Document(theme: theme);
 
       pdf.addPage(
         pw.MultiPage(
@@ -570,7 +585,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       final file = File('${dir.path}/${report.reportNumber}.pdf');
       await file.writeAsBytes(await pdf.save());
 
-      setState(() => _isGeneratingPdf = false);
+      if (mounted) setState(() => _isGeneratingPdf = false);
 
       // Show preview
       if (mounted) {
@@ -579,12 +594,13 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           name: report.reportNumber,
         );
       }
-    } catch (e) {
-      setState(() => _isGeneratingPdf = false);
+    } catch (_) {
       if (mounted) {
+        setState(() => _isGeneratingPdf = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error generating PDF: $e'),
+            content: const Text(
+                'Could not generate the PDF. Check your internet connection (fonts are downloaded on first use) and try again.'),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -894,7 +910,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   }
 
   Future<void> _printReport(PoliceReport report) async {
-    final pdf = pw.Document();
+    final pdf = pw.Document(theme: await _pdfTheme());
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -929,20 +945,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Text(
           'Finalise this draft?',
-          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
         ),
         content: Text(
           'This marks the draft as ready for a duty officer to review. It does not file an FIR with the police or CCTNS.',
-          style: GoogleFonts.nunito(fontSize: 14, color: AppTheme.textSecondary),
+          style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Cancel',
-                style: GoogleFonts.nunito(color: AppTheme.textMuted)),
+                style: GoogleFonts.inter(color: AppTheme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -951,20 +967,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Draft finalised for review',
-                      style: GoogleFonts.nunito()),
+                      style: GoogleFonts.inter()),
                   backgroundColor: AppTheme.success,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(6)),
                   margin: const EdgeInsets.all(16),
                 ),
               );
             },
             style: ElevatedButton.styleFrom(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(6)),
             ),
-            child: Text('Finalise', style: GoogleFonts.nunito()),
+            child: Text('Finalise', style: GoogleFonts.inter()),
           ),
         ],
       ),
@@ -997,14 +1013,14 @@ class _HeaderInfoItem extends StatelessWidget {
           children: [
             Text(
               label,
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 10,
                 color: Colors.white60,
               ),
             ),
             Text(
               value,
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
@@ -1041,14 +1057,14 @@ class _MetaItem extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 11,
                   color: AppTheme.textMuted,
                 ),
               ),
               Text(
                 value,
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
@@ -1124,7 +1140,7 @@ class _SectionBlockState extends State<_SectionBlock> {
                 child: Center(
                   child: Text(
                     '${widget.index}',
-                    style: GoogleFonts.nunito(
+                    style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.primary,
@@ -1136,7 +1152,7 @@ class _SectionBlockState extends State<_SectionBlock> {
               Expanded(
                 child: Text(
                   widget.section.title,
-                  style: GoogleFonts.nunito(
+                  style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.textPrimary,
@@ -1162,7 +1178,7 @@ class _SectionBlockState extends State<_SectionBlock> {
               color: widget.section.lowConfidence
                   ? AppTheme.warning.withOpacity(0.12)
                   : AppTheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(6),
               border: widget.section.lowConfidence
                   ? Border.all(color: AppTheme.warning.withOpacity(0.6))
                   : null,
@@ -1171,7 +1187,7 @@ class _SectionBlockState extends State<_SectionBlock> {
               controller: _controller,
               maxLines: null,
               onChanged: widget.onChanged,
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                 fontSize: 13,
                 color: AppTheme.textSecondary,
                 height: 1.6,

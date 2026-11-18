@@ -35,14 +35,15 @@ class NyayaVaaniApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ReportProvider()),
         ChangeNotifierProvider(
-          create: (_) {
-            final auth = AuthProvider();
+          create: (ctx) {
+            final reports = ctx.read<ReportProvider>();
+            final auth = AuthProvider(onLoggedOut: () => reports.clear());
             auth.restore();
             return auth;
           },
         ),
-        ChangeNotifierProvider(create: (_) => ReportProvider()),
       ],
       child: MaterialApp(
         title: 'NyayVanni',

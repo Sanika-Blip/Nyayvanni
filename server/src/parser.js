@@ -1,3 +1,11 @@
+// Rule-based extraction for English, Hindi and Marathi narrations.
+// NOTE: lib/services/fir_parser.dart mirrors these rules so offline results match online ones.
+// Keep the two in sync when editing.
+
+// Devanagari-aware "word boundaries" (\b does not work for Devanagari in JS).
+const NB = "(?<![\\u0900-\\u097F])";
+const NA = "(?![\\u0900-\\u097F])";
+
 function firstMatch(text, patterns) {
   for (const p of patterns) {
     const m = text.match(p);
@@ -8,12 +16,11 @@ function firstMatch(text, patterns) {
 
 function extractName(text) {
   return firstMatch(text, [
-    /(?:my name is|i am|i'm|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/i,
-    /(?:complainant|informant)\s+(?:is|:)\s+([A-Za-z][A-Za-z\s]{1,40})/i,
-    /मेरा नाम\s+([^\s,।.]{2,}(?:\s+[^\s,।.]{2,}){0,3})/,
-    /मैं\s+([^\s,।.]{2,}(?:\s+[^\s,।.]{2,}){0,2})\s+(?:हूँ|हूं|है)/,
-    /माझे नाव\s+([^\s,।.]{2,}(?:\s+[^\s,।.]{2,}){0,3})/,
-    /मी\s+([^\s,।.]{2,}(?:\s+[^\s,।.]{2,}){0,2})\s+(?:आहे|आहो)/,
+    // The trigger phrase may be any case, but the captured name must be capitalised.
+    /(?:[Mm]y name is|[Ii] am called|[Ii]'m called|[Tt]his is|[Ii] am|[Ii]'m)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/,
+    /(?:[Cc]omplainant|[Ii]nformant)\s+(?:is|:)\s+([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})/,
+    /मेरा नाम\s+([^\s,।.]{2,}(?:\s+[^\s,।.]{2,}){0,2}?)(?:\s+(?:है|हैं)|[,।.]|$)/,
+    /माझे नाव\s+([^\s,।.]{2,}(?:\s+[^\s,।.]{2,}){0,2}?)(?:\s+आहे|[,।.]|$)/,
   ]);
 }
 
@@ -22,51 +29,83 @@ function extractDate(text) {
     /\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/,
     /\b(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b/i,
     /\b(yesterday|today|last night|this morning)\b/i,
-    /(आज|कल|काल|परसों|गत रात|आज सुबह)/,
+    new RegExp(NB + "(आज सुबह|गत रात|परसों|आज|कल|काल)" + NA),
   ]);
 }
 
 function extractTime(text) {
   return firstMatch(text, [
-    /\b((?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?)\b/i,
-    /(सुबह|शाम|रात|दोपहर|सकाळी|संध्याकाळी|रात्री|दुपारी)\s*(?:\d{1,2}(?:[:.]\d{2})?)?/,
-    /(?:at around|around|about)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i,
+    /\b(\d{1,2}(?::\d{2})?\s*(?:a\.m\.|p\.m\.|am|pm))(?![a-z])/i,
+    /\b(?:at|around|about)\s+(\d{1,2}:\d{2})\b/i,
+    /\b(\d{1,2}:\d{2})\b/,
+    /\b(\d{1,2})\s*o'?\s*clock\b/i,
+    new RegExp("(सुबह|शाम|रात|दोपहर|सकाळी|संध्याकाळी|रात्री|दुपारी)" + NA + "\\s*(?:\\d{1,2}(?:[:.]\\d{2})?)?"),
   ]);
 }
 
+const TIME_WORDS = new Set(["आज", "कल", "काल", "परसों", "गत", "रात", "सुबह", "शाम", "दोपहर", "सकाळी", "संध्याकाळी", "रात्री", "दुपारी"]);
+
+// Drop leading date/time words that the postposition pattern may have swept up.
+function stripTimeWords(place) {
+  const words = place.split(/\s+/);
+  while (words.length > 1 && TIME_WORDS.has(words[0])) words.shift();
+  return words.join(" ");
+}
+
 function extractLocation(text) {
-  return firstMatch(text, [
-    /(?:at|in|near|outside|inside)\s+([A-Z][A-Za-z0-9 ,.-]{2,60}?)(?=[.,;]|$)/,
-    /(?:स्थान|जगह|पते|पता|में|पर)\s*[:\-]?\s*([^\n।.]{3,60})/,
-    /(?:येथे|इथे|जवळ|गावात|पत्त्यावर)\s*[:\-]?\s*([^\n।.]{3,60})/,
-  ]);
+  return stripTimeWords(firstMatch(text, [
+    /\b(?:at|in|near|outside|inside)\s+([A-Z][A-Za-z0-9 ,.-]{2,60}?)(?=[.,;]|$)/,
+    /(?:स्थान|जगह|पते|पता)\s*[:-]?\s*([^\n।.]{3,60})/,
+    // Postpositions follow the place: "<place> में / पर / के पास / येथे / जवळ".
+    new RegExp("([^\\s।,.]+(?:\\s+[^\\s।,.]+){0,3})\\s+(?:में|पर|के पास|येथे|इथे|जवळ)" + NA),
+    /पत्त्यावर\s*[:-]?\s*([^\n।.]{3,60})/,
+  ]));
+}
+
+const OFFENCES = {
+  "Theft / चोरी": ["theft", "stolen", "steal", "chori", "चोरी", "चोरीला", "चोरले"],
+  "Robbery / डकैती": ["robbery", "looted", "snatched", "डकैती", "लूट", "लुटले"],
+  "Assault / मारपीट": ["assault", "beaten", "hit me", "attacked", "मारपीट", "मारहाण", "मारहाई", "मारले", "पीटा"],
+  "Cheating / ठगी": ["cheating", "fraud", "scam", "duped", "ठगी", "फसवणूक", "धोखा"],
+  "Harassment / छेड़छाड़": ["harassment", "eve teasing", "stalking", "छेड़छाड़", "छेडछाड", "छळ"],
+  "Accident / अपघात": ["accident", "collision", "अपघात", "दुर्घटना"],
+  "Missing person / गुमशुदगी": ["लापता", "बेपत्ता", "गुमशुदा"],
+  "Criminal intimidation / धमकी": ["threat", "threatened", "धमकी", "धमकवले"],
+};
+
+function hasKeyword(text, lower, k) {
+  if (/^[a-z ]+$/i.test(k)) {
+    return new RegExp("\\b" + k.replace(/ /g, "\\s+"), "i").test(lower);
+  }
+  return text.includes(k);
 }
 
 function extractOffence(text) {
   const lower = text.toLowerCase();
-  const map = {
-    "Theft / चोरी": ["theft", "stolen", "steal", "chori", "चोरी", "चोरले"],
-    "Robbery / डकैती": ["robbery", "looted", "snatched", "डकैती", "लूट", "लुटले"],
-    "Assault / मारपीट": ["assault", "beaten", "hit me", "attacked", "मारपीट", "मारहाई", "मारले"],
-    "Cheating / ठगी": ["cheating", "fraud", "scam", "duped", "ठगी", "फसवणूक", "धोखा"],
-    "Harassment / छेड़छाड़": ["harassment", "eve teasing", "stalking", "छेड़छाड़", "छेडछाड", "छळ"],
-    "Accident / अपघात": ["accident", "collision", "अपघात", "दुर्घटना"],
-    "Missing person / गुमशुदगी": ["missing", "गुम", "लापता"],
-    "Criminal intimidation / धमकी": ["threat", "threatened", "धमकी", "धमकवले"],
-  };
-  for (const [label, keys] of Object.entries(map)) {
-    if (keys.some((k) => lower.includes(k.toLowerCase()) || text.includes(k))) {
-      return label;
+  let best = null;
+  let bestScore = 0;
+  for (const [label, keys] of Object.entries(OFFENCES)) {
+    let score = keys.filter((k) => hasKeyword(text, lower, k)).length;
+    // "missing" means a missing person only when a person is the subject ("my phone is missing" is not).
+    if (
+      label.startsWith("Missing") &&
+      /\bmissing\b/i.test(text) &&
+      /\b(son|daughter|child|wife|husband|brother|sister|boy|girl|person|father|mother)\b/i.test(text)
+    ) {
+      score += 1;
+    }
+    if (score > bestScore) {
+      best = label;
+      bestScore = score;
     }
   }
-  return "Cognisable offence as narrated (to be classified by duty officer)";
+  return best || "Cognisable offence as narrated (to be classified by duty officer)";
 }
 
 function extractAccused(text) {
   const named = firstMatch(text, [
-    /(?:accused|suspect|by a (?:man|woman|person) named|named)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/i,
-    /(?:आरोपी|संदिग्ध|नाम है)\s*[:\-]?\s*([^\n।.]{2,40})/,
-    /(?:आरोपी|संशयित)\s*[:\-]?\s*([^\n।.]{2,40})/,
+    /(?:[Aa]ccused|[Ss]uspect|by a (?:man|woman|person) named|[Nn]amed)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/,
+    /(?:आरोपी|संदिग्ध|संशयित|नाम है)\s*[:-]?\s*([^\n।.]{2,40})/,
   ]);
   if (named) return named;
   if (/\bunknown\b|अज्ञात|माहित नाही/i.test(text)) {
@@ -82,7 +121,7 @@ function summarise(text) {
 }
 
 function parseTranscript(transcript) {
-  const text = (transcript || "").trim();
+  const text = String(transcript || "").trim();
   if (!text) {
     return {
       complainantName: "",

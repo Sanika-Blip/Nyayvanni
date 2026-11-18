@@ -62,7 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 gradient: AppTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(6),
                 boxShadow: [
                   BoxShadow(
                     color: AppTheme.primary.withOpacity(0.3),
@@ -76,7 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(width: 10),
             Text(
               'NyayVanni',
-              style: GoogleFonts.playfairDisplay(
+              style: GoogleFonts.inter(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary,
@@ -117,7 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             officer == null
                 ? 'Duty officer'
                 : '${officer.rank.isEmpty ? 'Officer' : officer.rank} ${officer.fullName}',
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 15,
               color: AppTheme.textMuted,
               fontWeight: FontWeight.w500,
@@ -125,7 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           Text(
             'Speak. Review. Draft an FIR.',
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 26,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -136,7 +136,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             officer == null
                 ? 'Hindi, Marathi, or English.'
                 : '${officer.officerId}  •  ${officer.station.isEmpty ? 'Station not set' : officer.station}',
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 13,
               color: AppTheme.textSecondary,
               height: 1.5,
@@ -196,7 +196,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Text(
             'Start here',
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -225,7 +225,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Text(
                 'Session drafts',
-                style: GoogleFonts.playfairDisplay(
+                style: GoogleFonts.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.textPrimary,
@@ -234,7 +234,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 6),
               Text(
                 'Kept on this device for demonstration and review.',
-                style: GoogleFonts.nunito(
+                style: GoogleFonts.inter(
                   fontSize: 13,
                   color: AppTheme.textMuted,
                 ),
@@ -282,7 +282,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 16),
           Text(
             'No drafts yet',
-            style: GoogleFonts.playfairDisplay(
+            style: GoogleFonts.inter(
               fontSize: 18,
               fontWeight: FontWeight.w600,
               color: AppTheme.textPrimary,
@@ -292,7 +292,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(
             'Tap the mic and tell what happened.\nWe will turn it into an FIR draft.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.nunito(
+            style: GoogleFonts.inter(
               fontSize: 14,
               color: AppTheme.textMuted,
               height: 1.5,
@@ -307,7 +307,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primary.withOpacity(0.4),
@@ -323,7 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         icon: const Icon(Icons.mic, color: Colors.white),
         label: Text(
           'New FIR draft',
-          style: GoogleFonts.nunito(
+          style: GoogleFonts.inter(
             color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 15,
@@ -373,7 +373,7 @@ class _QuickActionCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: gradient,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
               color: gradient.colors.first.withOpacity(0.3),
@@ -388,7 +388,7 @@ class _QuickActionCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.25),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(icon, color: Colors.white, size: 28),
             ),
@@ -399,7 +399,7 @@ class _QuickActionCard extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: GoogleFonts.nunito(
+                    style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
@@ -407,7 +407,7 @@ class _QuickActionCard extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    style: GoogleFonts.nunito(
+                    style: GoogleFonts.inter(
                       fontSize: 13,
                       color: Colors.white.withOpacity(0.85),
                     ),
@@ -449,7 +449,7 @@ class _ReportCard extends StatelessWidget {
                 color: report.isLowConfidence
                     ? AppTheme.warning.withOpacity(0.25)
                     : AppTheme.primaryLight.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
                 report.isLowConfidence
@@ -471,7 +471,7 @@ class _ReportCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           report.reportNumber,
-                          style: GoogleFonts.nunito(
+                          style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.textPrimary,
@@ -490,7 +490,7 @@ class _ReportCard extends StatelessWidget {
                             : 'FIR draft'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.nunito(
+                    style: GoogleFonts.inter(
                       fontSize: 12,
                       color: AppTheme.textMuted,
                     ),
@@ -508,7 +508,7 @@ class _ReportCard extends StatelessWidget {
                       const SizedBox(width: 3),
                       Text(
                         _formatDate(report.createdAt),
-                        style: GoogleFonts.nunito(
+                        style: GoogleFonts.inter(
                           fontSize: 11,
                           color: AppTheme.textMuted,
                         ),

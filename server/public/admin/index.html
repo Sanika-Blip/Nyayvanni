@@ -13,12 +13,12 @@
       <h1>NyayVanni Admin</h1>
       <p class="muted">Approve officer registrations, issue IDs, and manage all records.</p>
       <form id="login-form">
-        <label>Username<input name="username" value="admin" required /></label>
-        <label>Password<input name="password" type="password" value="Admin@12345" required /></label>
+        <label>Username<input name="username" autocomplete="username" required /></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
         <button type="submit">Sign in</button>
         <p id="login-error" class="error"></p>
       </form>
-      <p class="hint">Default login: <code>admin</code> / <code>Admin@12345</code></p>
+      <p class="hint">Authorised personnel only. Activity is logged.</p>
     </div>
   </div>
 

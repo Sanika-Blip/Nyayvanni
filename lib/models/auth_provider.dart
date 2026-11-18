@@ -8,6 +8,14 @@ class AuthProvider extends ChangeNotifier {
   static const _tokenKey = 'nv_officer_token';
   static const _userKey = 'nv_officer_user';
 
+  final void Function()? onLoggedOut;
+
+  AuthProvider({this.onLoggedOut}) {
+    ApiService.onUnauthorized = () {
+      if (_user != null) logout();
+    };
+  }
+
   OfficerUser? _user;
   bool _ready = false;
   bool _busy = false;
@@ -27,10 +35,21 @@ class AuthProvider extends ChangeNotifier {
       ApiService.token = token;
       try {
         _user = OfficerUser.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-        _user = await ApiService.me();
-        await _persist(token, _user!);
       } catch (_) {
         await logout();
+        _ready = true;
+        notifyListeners();
+        return;
+      }
+      try {
+        _user = await ApiService.me();
+        await _persist(token, _user!);
+      } on ApiException catch (e) {
+        // Only sign out when the server says the session is invalid.
+        // Being offline must not log an officer out.
+        if (e.isAuthError || e.statusCode == 404) await logout();
+      } catch (_) {
+        // Offline: keep the cached profile and continue.
       }
     }
     _ready = true;
@@ -59,7 +78,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiService.describe(e);
       _busy = false;
       notifyListeners();
       return false;
@@ -86,7 +105,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return message;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiService.describe(e);
       _busy = false;
       notifyListeners();
       rethrow;
@@ -106,7 +125,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiService.describe(e);
       _busy = false;
       notifyListeners();
       return false;
@@ -114,11 +133,13 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final wasLoggedIn = _user != null;
     _user = null;
     ApiService.token = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
+    if (wasLoggedIn) onLoggedOut?.call();
     notifyListeners();
   }
 }

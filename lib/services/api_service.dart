@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/officer_user.dart';
 import '../models/report_model.dart';
@@ -6,7 +8,11 @@ import 'fir_parser.dart';
 
 class ApiException implements Exception {
   final String message;
-  ApiException(this.message);
+  final int? statusCode;
+  ApiException(this.message, {this.statusCode});
+
+  bool get isAuthError => statusCode == 401;
+
   @override
   String toString() => message;
 }
@@ -18,6 +24,21 @@ class ApiService {
   );
 
   static String? token;
+
+  /// Called when the server rejects the saved session (expired, disabled or removed account).
+  static void Function()? onUnauthorized;
+
+  /// Turns any error into a short message that is safe to show to the officer.
+  static String describe(Object e) {
+    if (e is ApiException) return e.message;
+    if (e is TimeoutException) {
+      return 'The server took too long to respond. Please try again.';
+    }
+    if (e is SocketException || e is http.ClientException) {
+      return 'Cannot reach the server. Check your connection and try again.';
+    }
+    return 'Something went wrong. Please try again.';
+  }
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -31,7 +52,13 @@ class ApiService {
       body = jsonDecode(response.body) as Map<String, dynamic>;
     } catch (_) {}
     if (response.statusCode >= 400) {
-      throw ApiException(body['error'] as String? ?? 'Request failed');
+      if (response.statusCode == 401 && token != null) {
+        onUnauthorized?.call();
+      }
+      throw ApiException(
+        body['error'] as String? ?? 'Request failed',
+        statusCode: response.statusCode,
+      );
     }
     return body;
   }
@@ -155,23 +182,36 @@ class ApiService {
         .toList();
   }
 
-  static Future<void> upsertDraft(PoliceReport report) async {
+  /// Returns true only when the server confirmed the save, so callers can retry later.
+  static Future<bool> upsertDraft(PoliceReport report) async {
+    if (token == null) return false;
     try {
-      await http
+      final response = await http
           .post(
             Uri.parse('$baseUrl/api/drafts'),
             headers: _headers,
             body: jsonEncode(report.toJson()),
           )
           .timeout(const Duration(seconds: 8));
-    } catch (_) {}
+      if (response.statusCode == 401) onUnauthorized?.call();
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
   }
 
-  static Future<void> deleteDraft(String id) async {
+  /// Returns true when the draft is gone from the server (deleted or already missing).
+  static Future<bool> deleteDraft(String id) async {
+    if (token == null) return false;
     try {
-      await http
+      final response = await http
           .delete(Uri.parse('$baseUrl/api/drafts/$id'), headers: _headers)
           .timeout(const Duration(seconds: 8));
-    } catch (_) {}
+      if (response.statusCode == 401) onUnauthorized?.call();
+      return (response.statusCode >= 200 && response.statusCode < 300) ||
+          response.statusCode == 404;
+    } catch (_) {
+      return false;
+    }
   }
 }

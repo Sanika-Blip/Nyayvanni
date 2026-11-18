@@ -45,10 +45,10 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             const SizedBox(height: 24),
             Text('NyayVanni',
-                style: GoogleFonts.playfairDisplay(
+                style: GoogleFonts.inter(
                     fontSize: 32, fontWeight: FontWeight.w700)),
             Text('Police officer sign in',
-                style: GoogleFonts.nunito(color: AppTheme.textMuted)),
+                style: GoogleFonts.inter(color: AppTheme.textMuted)),
             const SizedBox(height: 28),
             GlassCard(
               child: Column(
@@ -80,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 20),
             Text(
               'New officer? Submit your details. An administrator will create your ID and password and email them to you.',
-              style: GoogleFonts.nunito(
+              style: GoogleFonts.inter(
                   fontSize: 13, color: AppTheme.textSecondary, height: 1.5),
             ),
             const SizedBox(height: 12),

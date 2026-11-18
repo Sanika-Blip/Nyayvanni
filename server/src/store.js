@@ -23,9 +23,12 @@ function emptyDb() {
 
 let db = emptyDb();
 
+// Write to a temp file then rename, so a crash mid-write can never leave a truncated db.json.
 function persist() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(DATA_PATH, JSON.stringify(db, null, 2), "utf8");
+  const tmp = DATA_PATH + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2), "utf8");
+  fs.renameSync(tmp, DATA_PATH);
 }
 
 function publicAdmin(a) {
@@ -68,14 +71,25 @@ function load() {
     if (fs.existsSync(DATA_PATH)) {
       db = { ...emptyDb(), ...JSON.parse(fs.readFileSync(DATA_PATH, "utf8")) };
     }
-  } catch {
+  } catch (err) {
+    // Never silently discard data: keep the unreadable file for recovery before starting empty.
+    const backup = path.join(DATA_DIR, `db.corrupt-${Date.now()}.json`);
+    try {
+      fs.copyFileSync(DATA_PATH, backup);
+      console.error(`db.json could not be read (${err.message}). Copy kept at ${backup}`);
+    } catch {}
     db = emptyDb();
   }
 }
 
 function generateOfficerId() {
-  const n = String(db.officers.length + 1).padStart(4, "0");
-  return `NV-PO-${new Date().getFullYear()}-${n}`;
+  const year = new Date().getFullYear();
+  let n = db.officers.length + 1;
+  let id;
+  do {
+    id = `NV-PO-${year}-${String(n++).padStart(4, "0")}`;
+  } while (db.officers.some((o) => o.officerId.toLowerCase() === id.toLowerCase()));
+  return id;
 }
 
 function generatePassword() {
@@ -120,7 +134,11 @@ const store = {
   async updateAdmin(id, payload) {
     const row = this.findAdminById(id);
     if (!row) return null;
-    if (payload.username) row.username = payload.username.trim();
+    if (payload.username) {
+      const clash = this.findAdminByUsername(payload.username.trim());
+      if (clash && clash.id !== row.id) throw new Error("Username already exists");
+      row.username = payload.username.trim();
+    }
     if (payload.name) row.name = payload.name.trim();
     if (payload.email) row.email = payload.email.trim();
     if (payload.password) row.passwordHash = await bcrypt.hash(payload.password, 10);
@@ -129,6 +147,7 @@ const store = {
     return publicAdmin(row);
   },
   deleteAdmin(id) {
+    if (!db.admins.some((a) => a.id === id)) return false;
     if (db.admins.length <= 1) throw new Error("Cannot delete the last admin");
     const before = db.admins.length;
     db.admins = db.admins.filter((a) => a.id !== id);
@@ -181,7 +200,11 @@ const store = {
     return db.registrations.find((r) => r.id === id);
   },
   createRegistration(payload) {
+    if (typeof payload.email !== "string" || typeof payload.fullName !== "string") {
+      throw new Error("Full name and email are required");
+    }
     const email = payload.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address");
     const existing = db.registrations.find(
       (r) => r.email === email && r.status === "pending"
     );
@@ -227,7 +250,11 @@ const store = {
       "notes",
     ];
     for (const f of fields) {
-      if (payload[f] != null) row[f] = String(payload[f]).trim();
+      if (payload[f] == null) continue;
+      const v = String(payload[f]).trim();
+      if ((f === "fullName" || f === "email") && !v) continue;
+      if (f === "status" && !["pending", "approved", "rejected"].includes(v)) continue;
+      row[f] = v;
     }
     if (row.email) row.email = row.email.toLowerCase();
     row.updatedAt = nowIso();
@@ -258,7 +285,7 @@ const store = {
   },
   async createOfficer(payload) {
     const officerId = (payload.officerId || generateOfficerId()).trim();
-    if (db.officers.some((o) => o.officerId === officerId)) {
+    if (db.officers.some((o) => o.officerId.toLowerCase() === officerId.toLowerCase())) {
       throw new Error("Officer ID already exists");
     }
     const email = payload.email.trim().toLowerCase();
@@ -278,7 +305,7 @@ const store = {
       district: (payload.district || "").trim(),
       state: (payload.state || "").trim(),
       address: (payload.address || "").trim(),
-      status: payload.status || "active",
+      status: payload.status === "disabled" ? "disabled" : "active",
       passwordHash: await bcrypt.hash(password, 10),
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -303,10 +330,27 @@ const store = {
       "status",
       "officerId",
     ];
+    const required = new Set(["fullName", "email", "officerId"]);
+    const next = {};
     for (const f of fields) {
-      if (payload[f] != null) row[f] = String(payload[f]).trim();
+      if (payload[f] == null) continue;
+      const v = String(payload[f]).trim();
+      if (required.has(f) && !v) continue; // never blank out required fields
+      next[f] = v;
     }
-    if (row.email) row.email = row.email.toLowerCase();
+    if (next.email) {
+      next.email = next.email.toLowerCase();
+      const clash = this.findOfficerByEmail(next.email);
+      if (clash && clash.id !== row.id) throw new Error("Email already in use");
+    }
+    if (next.officerId) {
+      const clash = this.findOfficerByLogin(next.officerId);
+      if (clash && clash.id !== row.id) throw new Error("Officer ID already exists");
+    }
+    if (next.status && !["active", "disabled"].includes(next.status)) {
+      throw new Error("Status must be active or disabled");
+    }
+    Object.assign(row, next);
     let password;
     if (payload.password) {
       password = payload.password;
@@ -315,6 +359,17 @@ const store = {
     row.updatedAt = nowIso();
     persist();
     return { officer: publicOfficer(row), password };
+  },
+  // Officers may only change their own contact details and password.
+  async updateOwnProfile(id, payload) {
+    const allowed = ["fullName", "phone", "address", "rank", "station", "district", "state"];
+    const safe = {};
+    for (const f of allowed) if (payload[f] != null) safe[f] = payload[f];
+    if (payload.password) {
+      if (String(payload.password).length < 8) throw new Error("Password must be at least 8 characters");
+      safe.password = payload.password;
+    }
+    return this.updateOfficer(id, safe);
   },
   deleteOfficer(id) {
     const before = db.officers.length;
