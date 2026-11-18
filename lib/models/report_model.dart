@@ -63,6 +63,7 @@ class PoliceReport {
   String complainantAddress;
   String officerId;
   String officerName;
+  String officerRank;
   String badgeNumber;
   String station;
   String district;
@@ -78,6 +79,12 @@ class PoliceReport {
   String summary;
   double confidenceScore;
 
+  /// Review workflow (set by the server): none | pending | approved | returned.
+  String reviewStatus;
+  String reviewComment;
+  String reviewedBy;
+  DateTime? reviewedAt;
+
   PoliceReport({
     String? id,
     String? reportNumber,
@@ -88,6 +95,7 @@ class PoliceReport {
     this.complainantAddress = '',
     this.officerId = '',
     this.officerName = '',
+    this.officerRank = '',
     this.badgeNumber = '',
     this.station = '',
     this.district = '',
@@ -102,6 +110,10 @@ class PoliceReport {
     this.rawTranscript = '',
     this.summary = '',
     this.confidenceScore = 0.0,
+    this.reviewStatus = 'none',
+    this.reviewComment = '',
+    this.reviewedBy = '',
+    this.reviewedAt,
   })  : id = id ?? const Uuid().v4(),
         reportNumber = reportNumber ?? _generateReportNumber(),
         createdAt = createdAt ?? DateTime.now(),
@@ -110,6 +122,26 @@ class PoliceReport {
 
   bool get isLowConfidence =>
       confidenceScore > 0 && confidenceScore < 0.7;
+
+  /// With the reviewer, or already approved: the author can no longer edit.
+  bool get isLocked => reviewStatus == 'pending' || reviewStatus == 'approved';
+  bool get isReturned => reviewStatus == 'returned';
+  bool get isApproved => reviewStatus == 'approved';
+  bool get isPending => reviewStatus == 'pending';
+
+  /// Plain label for lists and headers.
+  String get statusLabel {
+    switch (reviewStatus) {
+      case 'pending':
+        return 'In review';
+      case 'approved':
+        return 'Approved';
+      case 'returned':
+        return 'Returned';
+      default:
+        return 'Draft';
+    }
+  }
 
   static String _generateReportNumber() {
     final now = DateTime.now();
@@ -127,6 +159,7 @@ class PoliceReport {
         'complainantAddress': complainantAddress,
         'officerId': officerId,
         'officerName': officerName,
+        'officerRank': officerRank,
         'badgeNumber': badgeNumber,
         'station': station,
         'district': district,
@@ -141,6 +174,10 @@ class PoliceReport {
         'rawTranscript': rawTranscript,
         'summary': summary,
         'confidenceScore': confidenceScore,
+        'reviewStatus': reviewStatus,
+        'reviewComment': reviewComment,
+        'reviewedBy': reviewedBy,
+        'reviewedAt': reviewedAt?.toIso8601String(),
       };
 
   factory PoliceReport.fromJson(Map<String, dynamic> json) {
@@ -157,6 +194,7 @@ class PoliceReport {
       complainantAddress: json['complainantAddress'] as String? ?? '',
       officerId: json['officerId'] as String? ?? '',
       officerName: json['officerName'] as String? ?? '',
+      officerRank: json['officerRank'] as String? ?? '',
       badgeNumber: json['badgeNumber'] as String? ?? '',
       station: json['station'] as String? ?? '',
       district: json['district'] as String? ?? '',
@@ -173,6 +211,10 @@ class PoliceReport {
       rawTranscript: json['rawTranscript'] as String? ?? '',
       summary: json['summary'] as String? ?? '',
       confidenceScore: (json['confidenceScore'] as num?)?.toDouble() ?? 0.0,
+      reviewStatus: json['reviewStatus'] as String? ?? 'none',
+      reviewComment: json['reviewComment'] as String? ?? '',
+      reviewedBy: json['reviewedBy'] as String? ?? '',
+      reviewedAt: DateTime.tryParse(json['reviewedAt'] as String? ?? ''),
     );
   }
 }

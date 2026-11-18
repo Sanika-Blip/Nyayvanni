@@ -21,9 +21,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ReportProvider>().loadDrafts();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  Future<void> _refresh() async {
+    final reports = context.read<ReportProvider>();
+    final isSupervisor =
+        context.read<AuthProvider>().user?.isSupervisor ?? false;
+    await Future.wait([
+      reports.loadDrafts(),
+      if (isSupervisor) reports.loadReviewQueue(),
+    ]);
   }
 
   @override
@@ -43,7 +51,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: RefreshIndicator(
               color: AppTheme.primary,
-              onRefresh: () => context.read<ReportProvider>().loadDrafts(),
+              onRefresh: _refresh,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.fromLTRB(gutter, 20, gutter, 40),
@@ -53,18 +61,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const _SummaryStrip(),
                   const SizedBox(height: 16),
                   _RegisterPanel(
+                    isSupervisor:
+                        context.watch<AuthProvider>().user?.isSupervisor ??
+                            false,
                     onNew: () => Navigator.push(
                       context,
                       MaterialPageRoute(
                           builder: (_) => const NewReportScreen()),
                     ),
-                    onOpen: (r) {
+                    onOpen: (r, {required bool review}) async {
                       context.read<ReportProvider>().setCurrentReport(r);
-                      Navigator.push(
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const ReportDetailScreen()),
+                          builder: (_) =>
+                              ReportDetailScreen(reviewMode: review),
+                        ),
                       );
+                      if (mounted) _refresh();
                     },
                   ),
                 ],
@@ -221,6 +235,7 @@ class _OfficerPanel extends StatelessWidget {
       ('Officer ID', v(user?.officerId)),
       ('Police station', v(user?.station)),
       ('District', v(user?.district)),
+      if (user?.isSupervisor == true) ('Role', 'Station supervisor'),
     ];
     return _Panel(
       title: 'Officer on duty',
@@ -271,9 +286,10 @@ class _SummaryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.watch<ReportProvider>();
     final cells = <(String, int)>[
-      ('Total drafts', p.reports.length),
-      ('In progress', p.draftReports.length),
-      ('Finalised', p.submittedReports.length),
+      ('Total', p.reports.length),
+      ('Drafts', p.draftReports.length),
+      ('In review', p.pendingReports.length),
+      ('Approved', p.approvedReports.length),
     ];
     return Container(
       decoration: BoxDecoration(
@@ -285,11 +301,12 @@ class _SummaryStrip extends StatelessWidget {
         child: Row(
           children: [
             for (var i = 0; i < cells.length; i++) ...[
-              if (i > 0) const VerticalDivider(width: 1, color: AppTheme.divider),
+              if (i > 0)
+                const VerticalDivider(width: 1, color: AppTheme.divider),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -321,23 +338,82 @@ class _SummaryStrip extends StatelessWidget {
   }
 }
 
-// ── Register of FIR drafts ───────────────────────────────────────────────────
+// ── Register of FIR drafts (search, filter, supervisor queue) ───────────────
 
-class _RegisterPanel extends StatelessWidget {
+enum _Filter { all, draft, returned, inReview, approved }
+
+class _RegisterPanel extends StatefulWidget {
+  final bool isSupervisor;
   final VoidCallback onNew;
-  final void Function(PoliceReport) onOpen;
-  const _RegisterPanel({required this.onNew, required this.onOpen});
+  final Future<void> Function(PoliceReport, {required bool review}) onOpen;
+  const _RegisterPanel({
+    required this.isSupervisor,
+    required this.onNew,
+    required this.onOpen,
+  });
+
+  @override
+  State<_RegisterPanel> createState() => _RegisterPanelState();
+}
+
+class _RegisterPanelState extends State<_RegisterPanel> {
+  final _search = TextEditingController();
+  _Filter _filter = _Filter.all;
+  bool _newestFirst = true;
+  bool _showQueue = false;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  bool _matchesFilter(PoliceReport r) {
+    switch (_filter) {
+      case _Filter.all:
+        return true;
+      case _Filter.draft:
+        return r.reviewStatus == 'none';
+      case _Filter.returned:
+        return r.isReturned;
+      case _Filter.inReview:
+        return r.isPending;
+      case _Filter.approved:
+        return r.isApproved;
+    }
+  }
+
+  bool _matchesQuery(PoliceReport r) {
+    final q = _search.text.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return [
+      r.reportNumber,
+      r.complainantName,
+      r.natureOfOffence,
+      r.placeOfOccurrence,
+      r.officerName,
+    ].any((s) => s.toLowerCase().contains(q));
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ReportProvider>();
     final wide = MediaQuery.of(context).size.width >= 640;
+    final source = _showQueue ? provider.reviewQueue : provider.reports;
+    final rows = source
+        .where((r) => _showQueue || _matchesFilter(r))
+        .where(_matchesQuery)
+        .toList()
+      ..sort((a, b) => _newestFirst
+          ? b.updatedAt.compareTo(a.updatedAt)
+          : a.updatedAt.compareTo(b.updatedAt));
+
     return _Panel(
-      title: 'FIR drafts',
+      title: _showQueue ? 'Review queue' : 'FIR drafts',
       trailing: SizedBox(
         height: 34,
         child: ElevatedButton.icon(
-          onPressed: onNew,
+          onPressed: widget.onNew,
           icon: const Icon(Icons.add, size: 18),
           label: const Text('New statement'),
           style: ElevatedButton.styleFrom(
@@ -347,48 +423,176 @@ class _RegisterPanel extends StatelessWidget {
           ),
         ),
       ),
-      child: Builder(builder: (context) {
-        if (provider.isLoading && provider.reports.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          );
-        }
-        if (provider.reports.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(
-              'No FIR drafts have been recorded yet. Choose “New statement” to record a complainant’s account.',
-              style: GoogleFonts.notoSans(
-                fontSize: 13,
-                color: AppTheme.textSecondary,
-                height: 1.5,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.isSupervisor) _tabs(provider.reviewQueue.length),
+          _toolbar(),
+          if (provider.isLoading && source.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else if (rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                _emptyText(source.isEmpty),
+                style: GoogleFonts.notoSans(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
               ),
-            ),
-          );
-        }
-        return Column(
-          children: [
-            if (wide) const _TableHead(),
-            for (var i = 0; i < provider.reports.length; i++)
+            )
+          else ...[
+            if (wide) _TableHead(showOfficer: _showQueue),
+            for (var i = 0; i < rows.length; i++)
               _ReportRow(
-                report: provider.reports[i],
+                report: rows[i],
                 wide: wide,
-                last: i == provider.reports.length - 1,
-                onTap: () => onOpen(provider.reports[i]),
-                onDelete: () => context
-                    .read<ReportProvider>()
-                    .deleteReport(provider.reports[i].id),
+                last: i == rows.length - 1,
+                showOfficer: _showQueue,
+                unsynced: !_showQueue && provider.isUnsynced(rows[i].id),
+                onTap: () => widget.onOpen(rows[i], review: _showQueue),
+                onDelete: _showQueue || rows[i].isLocked
+                    ? null
+                    : () => context
+                        .read<ReportProvider>()
+                        .deleteReport(rows[i].id),
               ),
           ],
+        ],
+      ),
+    );
+  }
+
+  String _emptyText(bool sourceEmpty) {
+    if (_showQueue) {
+      return sourceEmpty
+          ? 'No FIRs are waiting for your review.'
+          : 'No FIRs match your search.';
+    }
+    return sourceEmpty
+        ? 'No FIR drafts have been recorded yet. Choose “New statement” to record a complainant’s account.'
+        : 'No FIR drafts match your search or filter.';
+  }
+
+  Widget _tabs(int queueCount) {
+    Widget tab(String label, bool selected, VoidCallback onTap) => InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: selected ? AppTheme.accent : Colors.transparent,
+                  width: 3,
+                ),
+              ),
+            ),
+            child: Text(
+              label,
+              style: GoogleFonts.notoSans(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? AppTheme.primaryDark : AppTheme.textSecondary,
+              ),
+            ),
+          ),
         );
-      }),
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppTheme.divider)),
+      ),
+      child: Row(
+        children: [
+          tab('My drafts', !_showQueue,
+              () => setState(() => _showQueue = false)),
+          tab('Review queue ($queueCount)', _showQueue,
+              () => setState(() => _showQueue = true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _toolbar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 40,
+                  child: TextField(
+                    controller: _search,
+                    onChanged: (_) => setState(() {}),
+                    style: GoogleFonts.notoSans(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search number, complainant, offence, place',
+                      prefixIcon: const Icon(Icons.search, size: 18),
+                      suffixIcon: _search.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 16),
+                              onPressed: () => setState(_search.clear),
+                            ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () => setState(() => _newestFirst = !_newestFirst),
+                icon: Icon(
+                  _newestFirst ? Icons.arrow_downward : Icons.arrow_upward,
+                  size: 16,
+                ),
+                label: Text(_newestFirst ? 'Newest' : 'Oldest'),
+              ),
+            ],
+          ),
+          if (!_showQueue) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final (f, label) in const [
+                  (_Filter.all, 'All'),
+                  (_Filter.draft, 'Draft'),
+                  (_Filter.returned, 'Returned'),
+                  (_Filter.inReview, 'In review'),
+                  (_Filter.approved, 'Approved'),
+                ])
+                  ChoiceChip(
+                    label: Text(label, style: const TextStyle(fontSize: 12)),
+                    selected: _filter == f,
+                    visualDensity: VisualDensity.compact,
+                    selectedColor: AppTheme.primaryLight,
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: AppTheme.divider),
+                    showCheckmark: false,
+                    onSelected: (_) => setState(() => _filter = f),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
 class _TableHead extends StatelessWidget {
-  const _TableHead();
+  final bool showOfficer;
+  const _TableHead({required this.showOfficer});
 
   @override
   Widget build(BuildContext context) {
@@ -400,14 +604,20 @@ class _TableHead extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppTheme.divider)),
+        border: Border(
+          top: BorderSide(color: AppTheme.divider),
+          bottom: BorderSide(color: AppTheme.divider),
+        ),
       ),
       child: Row(
         children: [
           Expanded(flex: 26, child: Text('Report no.', style: s)),
           Expanded(flex: 26, child: Text('Nature of offence', style: s)),
-          Expanded(flex: 20, child: Text('Complainant', style: s)),
-          Expanded(flex: 14, child: Text('Date', style: s)),
+          Expanded(
+              flex: 20,
+              child: Text(showOfficer ? 'Recorded by' : 'Complainant',
+                  style: s)),
+          Expanded(flex: 14, child: Text('Updated', style: s)),
           Expanded(flex: 14, child: Text('Status', style: s)),
           const SizedBox(width: 40),
         ],
@@ -420,13 +630,17 @@ class _ReportRow extends StatelessWidget {
   final PoliceReport report;
   final bool wide;
   final bool last;
+  final bool showOfficer;
+  final bool unsynced;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
 
   const _ReportRow({
     required this.report,
     required this.wide,
     required this.last,
+    required this.showOfficer,
+    required this.unsynced,
     required this.onTap,
     required this.onDelete,
   });
@@ -436,30 +650,36 @@ class _ReportRow extends StatelessWidget {
     final offence = report.natureOfOffence.isNotEmpty
         ? report.natureOfOffence
         : (report.summary.isNotEmpty ? report.summary : '—');
-    final complainant =
-        report.complainantName.trim().isEmpty ? '—' : report.complainantName;
-    final date = _date(report.createdAt);
+    final who = showOfficer
+        ? (report.officerName.isEmpty ? report.officerId : report.officerName)
+        : (report.complainantName.trim().isEmpty
+            ? '—'
+            : report.complainantName);
+    final date = _date(report.updatedAt);
     final number = GoogleFonts.notoSans(
       fontSize: 13,
       fontWeight: FontWeight.w600,
       color: AppTheme.primary,
     );
-    final body = GoogleFonts.notoSans(
-      fontSize: 13,
-      color: AppTheme.textPrimary,
-    );
-    final muted = GoogleFonts.notoSans(
-      fontSize: 12,
-      color: AppTheme.textMuted,
-    );
+    final body =
+        GoogleFonts.notoSans(fontSize: 13, color: AppTheme.textPrimary);
+    final muted =
+        GoogleFonts.notoSans(fontSize: 12, color: AppTheme.textMuted);
 
     final content = wide
         ? Row(
             children: [
               Expanded(
-                  flex: 26,
-                  child: Text(report.reportNumber,
-                      style: number, overflow: TextOverflow.ellipsis)),
+                flex: 26,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(report.reportNumber,
+                        style: number, overflow: TextOverflow.ellipsis),
+                    if (unsynced) const SyncTag(),
+                  ],
+                ),
+              ),
               Expanded(
                   flex: 26,
                   child: Text(offence,
@@ -468,14 +688,16 @@ class _ReportRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis)),
               Expanded(
                   flex: 20,
-                  child: Text(complainant,
-                      style: body, overflow: TextOverflow.ellipsis)),
+                  child:
+                      Text(who, style: body, overflow: TextOverflow.ellipsis)),
               Expanded(flex: 14, child: Text(date, style: muted)),
               Expanded(
-                  flex: 14,
-                  child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: StatusBadge(status: report.status))),
+                flex: 14,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ReportStatusBadge(report: report),
+                ),
+              ),
             ],
           )
         : Column(
@@ -484,36 +706,38 @@ class _ReportRow extends StatelessWidget {
               Row(
                 children: [
                   Expanded(child: Text(report.reportNumber, style: number)),
-                  StatusBadge(status: report.status),
+                  ReportStatusBadge(report: report),
                 ],
               ),
               const SizedBox(height: 4),
               Text(offence,
                   style: body, maxLines: 2, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
-              Text('$complainant  •  $date', style: muted),
+              Text('$who  •  $date', style: muted),
+              if (unsynced) const SyncTag(),
             ],
           );
 
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
-        decoration: BoxDecoration(
-          border: last
-              ? null
-              : const Border(bottom: BorderSide(color: AppTheme.divider)),
+        padding: EdgeInsets.fromLTRB(16, 12, onDelete == null ? 16 : 4, 12),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppTheme.divider)),
         ),
         child: Row(
           children: [
             Expanded(child: content),
-            IconButton(
-              tooltip: 'Delete',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.delete_outline,
-                  color: AppTheme.textMuted, size: 20),
-              onPressed: () => _confirmDelete(context),
-            ),
+            if (onDelete != null)
+              IconButton(
+                tooltip: 'Delete',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.delete_outline,
+                    color: AppTheme.textMuted, size: 20),
+                onPressed: () => _confirmDelete(context),
+              )
+            else if (wide)
+              const SizedBox(width: 24),
           ],
         ),
       ),
@@ -540,7 +764,7 @@ class _ReportRow extends StatelessWidget {
         ],
       ),
     );
-    if (ok == true) onDelete();
+    if (ok == true) onDelete?.call();
   }
 
   String _date(DateTime dt) {

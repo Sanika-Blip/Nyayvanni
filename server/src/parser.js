@@ -39,22 +39,26 @@ function extractTime(text) {
     /\b(?:at|around|about)\s+(\d{1,2}:\d{2})\b/i,
     /\b(\d{1,2}:\d{2})\b/,
     /\b(\d{1,2})\s*o'?\s*clock\b/i,
+    // Hindi "11 बजे", Marathi "9 वाजता" / "9 वाजले"
+    /(\d{1,2}(?::\d{2})?\s*(?:बजे|वाजता|वाजले))/,
     new RegExp("(सुबह|शाम|रात|दोपहर|सकाळी|संध्याकाळी|रात्री|दुपारी)" + NA + "\\s*(?:\\d{1,2}(?:[:.]\\d{2})?)?"),
   ]);
 }
 
-const TIME_WORDS = new Set(["आज", "कल", "काल", "परसों", "गत", "रात", "सुबह", "शाम", "दोपहर", "सकाळी", "संध्याकाळी", "रात्री", "दुपारी"]);
+const TIME_WORDS = new Set(["आज", "कल", "काल", "परसों", "गत", "रात", "सुबह", "शाम", "दोपहर", "सकाळी", "संध्याकाळी", "रात्री", "दुपारी", "बजे", "वाजता", "वाजले", "लगभग", "करीब", "सुमारे"]);
 
 // Drop leading date/time words that the postposition pattern may have swept up.
 function stripTimeWords(place) {
   const words = place.split(/\s+/);
-  while (words.length > 1 && TIME_WORDS.has(words[0])) words.shift();
-  return words.join(" ");
+  while (words.length > 1 && (TIME_WORDS.has(words[0]) || /^\d/.test(words[0]))) words.shift();
+  return words.join(" ").replace(/[.,;]+$/, "");
 }
 
 function extractLocation(text) {
   return stripTimeWords(firstMatch(text, [
-    /\b(?:at|in|near|outside|inside)\s+([A-Z][A-Za-z0-9 ,.-]{2,60}?)(?=[.,;]|$)/,
+    // A place is a run of capitalised words after a preposition ("near City Mall", "at Gandhi Nagar").
+    // Months and weekdays are excluded so "in March" is not read as a place.
+    /\b(?:[Aa]t|[Ii]n|[Nn]ear|[Oo]utside|[Ii]nside|[Oo]pposite|[Bb]ehind)\s+(?!(?:January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b)((?:[A-Z][\w.'-]*)(?:\s+(?:of\s+)?[A-Z][\w.'-]*){0,5})/,
     /(?:स्थान|जगह|पते|पता)\s*[:-]?\s*([^\n।.]{3,60})/,
     // Postpositions follow the place: "<place> में / पर / के पास / येथे / जवळ".
     new RegExp("([^\\s।,.]+(?:\\s+[^\\s।,.]+){0,3})\\s+(?:में|पर|के पास|येथे|इथे|जवळ)" + NA),
@@ -63,7 +67,7 @@ function extractLocation(text) {
 }
 
 const OFFENCES = {
-  "Theft / चोरी": ["theft", "stolen", "steal", "chori", "चोरी", "चोरीला", "चोरले"],
+  "Theft / चोरी": ["theft", "stolen", "stole", "steal", "burglary", "broke into", "break in", "chori", "चोरी", "चोरीला", "चोरले"],
   "Robbery / डकैती": ["robbery", "looted", "snatched", "डकैती", "लूट", "लुटले"],
   "Assault / मारपीट": ["assault", "beaten", "hit me", "attacked", "मारपीट", "मारहाण", "मारहाई", "मारले", "पीटा"],
   "Cheating / ठगी": ["cheating", "fraud", "scam", "duped", "ठगी", "फसवणूक", "धोखा"],
@@ -104,7 +108,8 @@ function extractOffence(text) {
 
 function extractAccused(text) {
   const named = firstMatch(text, [
-    /(?:[Aa]ccused|[Ss]uspect|by a (?:man|woman|person) named|[Nn]amed)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/,
+    /(?:[Aa]ccused|[Ss]uspect)(?:\s+(?:is|was|named))?\s*:?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/,
+    /(?:by a (?:man|woman|person) named|[Nn]amed)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/,
     /(?:आरोपी|संदिग्ध|संशयित|नाम है)\s*[:-]?\s*([^\n।.]{2,40})/,
   ]);
   if (named) return named;

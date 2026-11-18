@@ -192,6 +192,7 @@ class _NewReportScreenState extends State<NewReportScreen>
       officerId: officer?.officerId ?? '',
       officerName: officer?.fullName ?? '',
       badgeNumber: officer?.badgeNumber ?? officer?.officerId ?? '',
+      officerRank: officer?.rank ?? '',
     );
 
     try {

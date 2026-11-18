@@ -120,6 +120,8 @@ class FirParser {
           caseSensitive: false),
       RegExp(r'\b(\d{1,2}:\d{2})\b'),
       RegExp(r"\b(\d{1,2})\s*o'?\s*clock\b", caseSensitive: false),
+      // Hindi "11 बजे", Marathi "9 वाजता" / "9 वाजले"
+      RegExp(r'(\d{1,2}(?::\d{2})?\s*(?:बजे|वाजता|वाजले))'),
       RegExp(
         '(सुबह|शाम|रात|दोपहर|सकाळी|संध्याकाळी|रात्री|दुपारी)$_na'
         r'\s*(?:\d{1,2}(?:[:.]\d{2})?)?',
@@ -129,22 +131,27 @@ class FirParser {
 
   static const Set<String> _timeWords = {
     'आज', 'कल', 'काल', 'परसों', 'गत', 'रात', 'सुबह', 'शाम', 'दोपहर',
-    'सकाळी', 'संध्याकाळी', 'रात्री', 'दुपारी',
+    'सकाळी', 'संध्याकाळी', 'रात्री', 'दुपारी', 'बजे', 'वाजता', 'वाजले',
+    'लगभग', 'करीब', 'सुमारे',
   };
 
   /// Drops leading date/time words that the postposition pattern may sweep up.
   static String _stripTimeWords(String place) {
     final words = place.split(RegExp(r'\s+'));
-    while (words.length > 1 && _timeWords.contains(words.first)) {
+    while (words.length > 1 &&
+        (_timeWords.contains(words.first) ||
+            RegExp(r'^\d').hasMatch(words.first))) {
       words.removeAt(0);
     }
-    return words.join(' ');
+    return words.join(' ').replaceAll(RegExp(r'[.,;]+$'), '');
   }
 
   static String _extractLocation(String text) {
     return _stripTimeWords(_first(text, <RegExp>[
       RegExp(
-        r'\b(?:at|in|near|outside|inside)\s+([A-Z][A-Za-z0-9 ,.-]{2,60}?)(?=[.,;]|$)',
+        // A place is a run of capitalised words after a preposition. Months and
+        // weekdays are excluded so "in March" is not read as a place.
+        r"\b(?:[Aa]t|[Ii]n|[Nn]ear|[Oo]utside|[Ii]nside|[Oo]pposite|[Bb]ehind)\s+(?!(?:January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b)((?:[A-Z][\w.'-]*)(?:\s+(?:of\s+)?[A-Z][\w.'-]*){0,5})",
       ),
       RegExp(r'(?:स्थान|जगह|पते|पता)\s*[:-]?\s*([^\n।.]{3,60})'),
       // Postpositions follow the place: "<place> में / पर / के पास / येथे / जवळ".
@@ -157,7 +164,8 @@ class FirParser {
 
   static const Map<String, List<String>> _offences = {
     'Theft / चोरी': [
-      'theft', 'stolen', 'steal', 'chori', 'चोरी', 'चोरीला', 'चोरले',
+      'theft', 'stolen', 'stole', 'steal', 'burglary', 'broke into', 'break in',
+      'chori', 'चोरी', 'चोरीला', 'चोरले',
     ],
     'Robbery / डकैती': [
       'robbery', 'looted', 'snatched', 'डकैती', 'लूट', 'लुटले',
@@ -215,7 +223,10 @@ class FirParser {
   static String _extractAccused(String text) {
     final named = _first(text, <RegExp>[
       RegExp(
-        r'(?:[Aa]ccused|[Ss]uspect|by a (?:man|woman|person) named|[Nn]amed)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})',
+        r'(?:[Aa]ccused|[Ss]uspect)(?:\s+(?:is|was|named))?\s*:?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})',
+      ),
+      RegExp(
+        r'(?:by a (?:man|woman|person) named|[Nn]amed)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})',
       ),
       RegExp(r'(?:आरोपी|संदिग्ध|संशयित|नाम है)\s*[:-]?\s*([^\n।.]{2,40})'),
     ]);
@@ -226,6 +237,8 @@ class FirParser {
     }
     return '';
   }
+
+  static String summarise(String transcript) => _summarise(transcript);
 
   static String _summarise(String transcript) {
     final words = transcript.trim().split(RegExp(r'\s+'));

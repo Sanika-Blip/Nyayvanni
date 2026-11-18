@@ -1,1181 +1,752 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../models/report_model.dart';
 import '../models/report_provider.dart';
+import '../services/api_service.dart';
+import '../services/fir_pdf.dart';
 import '../widgets/common_widgets.dart';
 
+/// FIR draft editor. Also used read-only by supervisors ([reviewMode]) who
+/// approve the FIR or return it with a comment.
 class ReportDetailScreen extends StatefulWidget {
-  const ReportDetailScreen({super.key});
+  final bool reviewMode;
+  const ReportDetailScreen({super.key, this.reviewMode = false});
 
   @override
   State<ReportDetailScreen> createState() => _ReportDetailScreenState();
 }
 
 class _ReportDetailScreenState extends State<ReportDetailScreen> {
-  bool _isGeneratingPdf = false;
+  static const _offences = <String>[
+    'Theft / चोरी',
+    'Robbery / डकैती',
+    'Assault / मारपीट',
+    'Cheating / ठगी',
+    'Harassment / छेड़छाड़',
+    'Accident / अपघात',
+    'Missing person / गुमशुदगी',
+    'Criminal intimidation / धमकी',
+  ];
 
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<ReportProvider>(
-      builder: (context, provider, _) {
-        final report = provider.currentReport;
-        if (report == null) {
-          return const Scaffold(
-            body: Center(child: Text('No report selected')),
-          );
-        }
+  bool _busy = false;
+  bool _working = false;
 
-        return Scaffold(
-          backgroundColor: AppTheme.background,
-          body: CustomScrollView(
-            slivers: [
-              _buildAppBar(context, report),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: contentGutter(context, maxWidth: 760),
-                      vertical: 24),
-                  child: Column(
-                    children: [
-                      _buildReportHeader(report),
-                      const SizedBox(height: 20),
-                      _buildMetaCard(report),
-                      const SizedBox(height: 20),
-                      if (report.sections.isNotEmpty) ...[
-                        _buildSectionsCard(report),
-                        const SizedBox(height: 20),
-                      ],
-                      if (report.rawTranscript.isNotEmpty) ...[
-                        _buildTranscriptCard(report),
-                        const SizedBox(height: 20),
-                      ],
-                      _buildActionButtons(context, report),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAppBar(BuildContext context, PoliceReport report) {
-    return SliverAppBar(
-      pinned: true,
-      backgroundColor: AppTheme.primaryDark,
-      surfaceTintColor: Colors.transparent,
-      foregroundColor: Colors.white,
-      iconTheme: const IconThemeData(color: Colors.white),
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
-      ),
-      title: Text(
-        report.reportNumber,
-        style: GoogleFonts.notoSans(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
-      ),
-      actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 8),
-          child: IconButton(
-            icon: const Icon(Icons.share_outlined, size: 20, color: Colors.white),
-            onPressed: () => _shareReport(report),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReportHeader(PoliceReport report) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryDark,
-        borderRadius: BorderRadius.circular(4),
-        border: const Border(
-          bottom: BorderSide(color: AppTheme.accent, width: 3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(Icons.description_outlined,
-                    color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'FIR draft',
-                      style: GoogleFonts.notoSans(
-                        fontSize: 13,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      report.reportNumber,
-                      style: GoogleFonts.notoSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              StatusBadge(status: report.status),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 1,
-            color: Colors.white.withOpacity(0.2),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _HeaderInfoItem(
-                icon: Icons.person_outline,
-                label: 'Complainant',
-                value: report.complainantName.isEmpty
-                    ? 'Not extracted'
-                    : report.complainantName,
-              ),
-              const SizedBox(width: 24),
-              _HeaderInfoItem(
-                icon: Icons.access_time,
-                label: 'Date',
-                value: DateFormat('dd MMM yyyy').format(report.createdAt),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _HeaderInfoItem(
-                icon: Icons.location_city_outlined,
-                label: 'Station',
-                value: report.station,
-              ),
-            ],
-          ),
-          if (report.confidenceScore > 0) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.insights, color: Colors.white70, size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  'Speech confidence: ${(report.confidenceScore * 100).toInt()}%',
-                  style: GoogleFonts.notoSans(
-                    fontSize: 12,
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: report.confidenceScore,
-                      backgroundColor: Colors.white24,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(Colors.white),
-                      minHeight: 4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetaCard(PoliceReport report) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Report Information',
-            style: GoogleFonts.notoSans(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _MetaItem(
-                  label: 'Phone',
-                  value: report.complainantPhone.isEmpty
-                      ? '—'
-                      : report.complainantPhone,
-                  icon: Icons.phone_outlined,
-                ),
-              ),
-              Expanded(
-                child: _MetaItem(
-                  label: 'District',
-                  value: report.district,
-                  icon: Icons.map_outlined,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _MetaItem(
-                  label: 'Language',
-                  value: report.language.name,
-                  icon: Icons.language,
-                ),
-              ),
-              Expanded(
-                child: _MetaItem(
-                  label: 'Last Updated',
-                  value: DateFormat('dd/MM/yy HH:mm').format(report.updatedAt),
-                  icon: Icons.update,
-                ),
-              ),
-            ],
-          ),
-          if (report.summary.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryLight.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: AppTheme.primaryLight.withOpacity(0.5),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.summarize_outlined,
-                      size: 16, color: AppTheme.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Summary',
-                          style: GoogleFonts.notoSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          report.summary,
-                          style: GoogleFonts.notoSans(
-                            fontSize: 13,
-                            color: AppTheme.textSecondary,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionsCard(PoliceReport report) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Structured FIR draft',
-                      style: GoogleFonts.notoSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.success.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.auto_awesome,
-                            size: 12, color: AppTheme.success),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Auto-extracted',
-                          style: GoogleFonts.notoSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.success,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Edit any field before you export. This is a draft, not a filed FIR.',
-                style: GoogleFonts.notoSans(
-                  fontSize: 12,
-                  color: AppTheme.textMuted,
-                ),
-              ),
-              if (report.isLowConfidence) ...[
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.warning.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    'Low transcription confidence (${(report.confidenceScore * 100).toInt()}%). Please check highlighted sections.',
-                    style: GoogleFonts.notoSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF8A6D1B),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...report.sections.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final section = entry.value;
-            return _SectionBlock(
-              index: idx + 1,
-              section: section,
-              isLast: idx == report.sections.length - 1,
-              onChanged: (value) {
-                context.read<ReportProvider>().updateSectionContent(idx, value);
-              },
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTranscriptCard(PoliceReport report) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Original Transcript',
-            style: GoogleFonts.notoSans(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              report.rawTranscript,
-              style: GoogleFonts.notoSans(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
-                height: 1.6,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(BuildContext context, PoliceReport report) {
-    return Column(
-      children: [
-        // Generate PDF
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _isGeneratingPdf ? null : () => _generatePdf(report),
-            icon: _isGeneratingPdf
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.picture_as_pdf),
-            label: Text(_isGeneratingPdf ? 'Generating PDF...' : 'Export as PDF'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Submit button
-        if (report.status != ReportStatus.submitted)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _submitReport(context, report),
-              icon: const Icon(Icons.verified_outlined),
-              label: const Text('Finalise draft'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.secondary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-          ),
-
-        const SizedBox(height: 12),
-
-        // Print
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => _printReport(report),
-            icon: const Icon(Icons.print_outlined),
-            label: const Text('Print draft'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.textSecondary,
-              side: const BorderSide(color: AppTheme.divider),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// The default PDF fonts cannot draw Devanagari, so Hindi/Marathi text would
-  /// come out blank. Load Noto fonts (Latin + Devanagari) instead.
-  Future<pw.ThemeData> _pdfTheme() async {
-    final regular = await PdfGoogleFonts.notoSansRegular();
-    final bold = await PdfGoogleFonts.notoSansBold();
-    final devRegular = await PdfGoogleFonts.notoSansDevanagariRegular();
-    final devBold = await PdfGoogleFonts.notoSansDevanagariBold();
-    return pw.ThemeData.withFont(
-      base: regular,
-      bold: bold,
-      fontFallback: [devRegular, devBold],
-    );
-  }
-
-  Future<void> _generatePdf(PoliceReport report) async {
-    setState(() => _isGeneratingPdf = true);
-
-    try {
-      final theme = await _pdfTheme();
-      final pdf = pw.Document(theme: theme);
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(40),
-          header: (context) => _buildPdfHeader(report),
-          footer: (context) => _buildPdfFooter(context, report),
-          build: (context) => [
-            _buildPdfBody(report),
-          ],
-        ),
-      );
-
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${report.reportNumber}.pdf');
-      await file.writeAsBytes(await pdf.save());
-
-      if (mounted) setState(() => _isGeneratingPdf = false);
-
-      // Show preview
-      if (mounted) {
-        await Printing.layoutPdf(
-          onLayout: (format) async => pdf.save(),
-          name: report.reportNumber,
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isGeneratingPdf = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-                'Could not generate the PDF. Check your internet connection (fonts are downloaded on first use) and try again.'),
-            backgroundColor: AppTheme.error,
-          ),
-        );
-      }
-    }
-  }
-
-  pw.Widget _buildPdfHeader(PoliceReport report) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.only(bottom: 16),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.blueGrey200, width: 1),
-        ),
-      ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'NyayVanni — FIR Draft (not an official filing)',
-                style: pw.TextStyle(
-                  fontSize: 10,
-                  color: PdfColors.blueGrey600,
-                ),
-              ),
-              pw.SizedBox(height: 2),
-              pw.Text(
-                'FIRST INFORMATION REPORT (DRAFT)',
-                style: pw.TextStyle(
-                  fontSize: 18,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blueGrey800,
-                ),
-              ),
-            ],
-          ),
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.end,
-            children: [
-              pw.Text(
-                report.reportNumber,
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blue800,
-                ),
-              ),
-              pw.Text(
-                DateFormat('dd MMMM yyyy, HH:mm').format(report.createdAt),
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  color: PdfColors.blueGrey500,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildPdfFooter(pw.Context context, PoliceReport report) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.only(top: 12),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          top: pw.BorderSide(color: PdfColors.blueGrey200, width: 1),
-        ),
-      ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            '${report.station} • ${report.district}',
-            style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
-          ),
-          pw.Text(
-            'Page ${context.pageNumber} of ${context.pagesCount}',
-            style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
-          ),
-          pw.Text(
-            'Generated by NyayVanni — academic draft only',
-            style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey400),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildPdfBody(PoliceReport report) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.SizedBox(height: 16),
-
-        // Officer info table
-        pw.Container(
-          padding: const pw.EdgeInsets.all(14),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.blueGrey50,
-            borderRadius: pw.BorderRadius.circular(6),
-          ),
-          child: pw.Row(
-            children: [
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('COMPLAINANT',
-                        style: pw.TextStyle(
-                            fontSize: 8,
-                            color: PdfColors.blueGrey500,
-                            fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    pw.Text(
-                        report.complainantName.isEmpty
-                            ? 'As per narration'
-                            : report.complainantName,
-                        style: pw.TextStyle(
-                            fontSize: 13, fontWeight: pw.FontWeight.bold)),
-                    pw.Text(
-                        report.complainantPhone.isEmpty
-                            ? ''
-                            : 'Phone: ${report.complainantPhone}',
-                        style: pw.TextStyle(
-                            fontSize: 10, color: PdfColors.blueGrey600)),
-                  ],
-                ),
-              ),
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('STATION',
-                        style: pw.TextStyle(
-                            fontSize: 8,
-                            color: PdfColors.blueGrey500,
-                            fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    pw.Text(report.station,
-                        style: pw.TextStyle(
-                            fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                    pw.Text(report.district,
-                        style: pw.TextStyle(
-                            fontSize: 10, color: PdfColors.blueGrey600)),
-                  ],
-                ),
-              ),
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('LANGUAGE',
-                        style: pw.TextStyle(
-                            fontSize: 8,
-                            color: PdfColors.blueGrey500,
-                            fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    pw.Text(report.language.name,
-                        style: pw.TextStyle(
-                            fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                    if (report.confidenceScore > 0)
-                      pw.Text(
-                          'Accuracy: ${(report.confidenceScore * 100).toInt()}%',
-                          style: pw.TextStyle(
-                              fontSize: 10, color: PdfColors.green700)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        pw.SizedBox(height: 20),
-
-        // Sections
-        if (report.sections.isNotEmpty) ...[
-          pw.Text(
-            'REPORT DETAILS',
-            style: pw.TextStyle(
-              fontSize: 9,
-              color: PdfColors.blueGrey500,
-              fontWeight: pw.FontWeight.bold,
-              letterSpacing: 1.5,
-            ),
-          ),
-          pw.SizedBox(height: 10),
-          ...report.sections.map((section) => pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.blue50,
-                      borderRadius: pw.BorderRadius.circular(4),
-                    ),
-                    child: pw.Text(
-                      section.title.toUpperCase(),
-                      style: pw.TextStyle(
-                        fontSize: 9,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.blue800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  pw.SizedBox(height: 6),
-                  pw.Container(
-                    width: double.infinity,
-                    padding: const pw.EdgeInsets.all(12),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(
-                          color: PdfColors.blueGrey100, width: 1),
-                      borderRadius: pw.BorderRadius.circular(4),
-                    ),
-                    child: pw.Text(
-                      section.content,
-                      style: pw.TextStyle(
-                        fontSize: 11,
-                        color: PdfColors.blueGrey800,
-                        lineSpacing: 4,
-                      ),
-                    ),
-                  ),
-                  pw.SizedBox(height: 14),
-                ],
-              )),
-        ],
-
-        // Raw transcript
-        if (report.rawTranscript.isNotEmpty) ...[
-          pw.Text(
-            'ORIGINAL SPEECH TRANSCRIPT',
-            style: pw.TextStyle(
-              fontSize: 9,
-              color: PdfColors.blueGrey500,
-              fontWeight: pw.FontWeight.bold,
-              letterSpacing: 1.5,
-            ),
-          ),
-          pw.SizedBox(height: 8),
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.all(14),
-            decoration: pw.BoxDecoration(
-              color: PdfColors.grey100,
-              borderRadius: pw.BorderRadius.circular(4),
-            ),
-            child: pw.Text(
-              report.rawTranscript,
-              style: pw.TextStyle(
-                fontSize: 10,
-                color: PdfColors.blueGrey600,
-                fontStyle: pw.FontStyle.italic,
-                lineSpacing: 4,
-              ),
-            ),
-          ),
-        ],
-
-        pw.SizedBox(height: 30),
-
-        // Signature section
-        pw.Row(
-          children: [
-            pw.Expanded(
-              child: pw.Column(
-                children: [
-                  pw.Container(height: 40),
-                  pw.Divider(color: PdfColors.blueGrey300),
-                  pw.SizedBox(height: 4),
-                  pw.Text('Complainant',
-                      style: pw.TextStyle(
-                          fontSize: 9, color: PdfColors.blueGrey500)),
-                  pw.Text(
-                      report.complainantName.isEmpty
-                          ? ' '
-                          : report.complainantName,
-                      style: pw.TextStyle(
-                          fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                ],
-              ),
-            ),
-            pw.SizedBox(width: 40),
-            pw.Expanded(
-              child: pw.Column(
-                children: [
-                  pw.Container(height: 40),
-                  pw.Divider(color: PdfColors.blueGrey300),
-                  pw.SizedBox(height: 4),
-                  pw.Text('Duty officer',
-                      style: pw.TextStyle(
-                          fontSize: 9, color: PdfColors.blueGrey500)),
-                  pw.Text('Review & file (manual)',
-                      style: pw.TextStyle(
-                          fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _printReport(PoliceReport report) async {
-    final pdf = pw.Document(theme: await _pdfTheme());
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
-        header: (context) => _buildPdfHeader(report),
-        footer: (context) => _buildPdfFooter(context, report),
-        build: (context) => [_buildPdfBody(report)],
-      ),
-    );
-    await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
-      name: report.reportNumber,
-    );
-  }
-
-  Future<void> _shareReport(PoliceReport report) async {
-    final text = StringBuffer();
-    text.writeln('NyayVanni FIR draft — ${report.reportNumber}');
-    text.writeln('This is not an officially filed FIR.');
-    text.writeln('Complainant: ${report.complainantName}');
-    text.writeln('Station: ${report.station}');
-    text.writeln('');
-    for (final section in report.sections) {
-      text.writeln('${section.title}:');
-      text.writeln(section.content);
-      text.writeln('');
-    }
-    await Share.share(text.toString(), subject: report.reportNumber);
-  }
-
-  void _submitReport(BuildContext context, PoliceReport report) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        title: Text(
-          'Finalise this draft?',
-          style: GoogleFonts.notoSans(fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          'This marks the draft as ready for a duty officer to review. It does not file an FIR with the police or CCTNS.',
-          style: GoogleFonts.notoSans(fontSize: 14, color: AppTheme.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
-                style: GoogleFonts.notoSans(color: AppTheme.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              context.read<ReportProvider>().submitReport(report.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Draft finalised for review',
-                      style: GoogleFonts.notoSans()),
-                  backgroundColor: AppTheme.success,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6)),
-                  margin: const EdgeInsets.all(16),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6)),
-            ),
-            child: Text('Finalise', style: GoogleFonts.notoSans()),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Helper Widgets ───────────────────────────────────────────────────────────
-
-class _HeaderInfoItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _HeaderInfoItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: Colors.white60, size: 13),
-        const SizedBox(width: 5),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.notoSans(
-                fontSize: 10,
-                color: Colors.white60,
-              ),
-            ),
-            Text(
-              value,
-              style: GoogleFonts.notoSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _MetaItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _MetaItem({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 15, color: AppTheme.textMuted),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.notoSans(
-                  fontSize: 11,
-                  color: AppTheme.textMuted,
-                ),
-              ),
-              Text(
-                value,
-                style: GoogleFonts.notoSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionBlock extends StatefulWidget {
-  final int index;
-  final ReportSection section;
-  final bool isLast;
-  final ValueChanged<String>? onChanged;
-
-  const _SectionBlock({
-    required this.index,
-    required this.section,
-    required this.isLast,
-    this.onChanged,
-  });
-
-  @override
-  State<_SectionBlock> createState() => _SectionBlockState();
-}
-
-class _SectionBlockState extends State<_SectionBlock> {
-  bool _isExpanded = true;
-  late final TextEditingController _controller;
+  late final TextEditingController _name;
+  late final TextEditingController _phone;
+  late final TextEditingController _address;
+  late final TextEditingController _date;
+  late final TextEditingController _time;
+  late final TextEditingController _place;
+  late final TextEditingController _offence;
+  late final TextEditingController _accused;
+  late final TextEditingController _narration;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.section.content);
-  }
-
-  @override
-  void didUpdateWidget(covariant _SectionBlock oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.section.content != widget.section.content &&
-        _controller.text != widget.section.content) {
-      _controller.text = widget.section.content;
-    }
+    final r = context.read<ReportProvider>().currentReport;
+    _name = TextEditingController(text: r?.complainantName ?? '');
+    _phone = TextEditingController(text: r?.complainantPhone ?? '');
+    _address = TextEditingController(text: r?.complainantAddress ?? '');
+    _date = TextEditingController(text: r?.occurrenceDate ?? '');
+    _time = TextEditingController(text: r?.occurrenceTime ?? '');
+    _place = TextEditingController(text: r?.placeOfOccurrence ?? '');
+    _offence = TextEditingController(text: r?.natureOfOffence ?? '');
+    _accused = TextEditingController(text: r?.accusedDetails ?? '');
+    _narration = TextEditingController(text: r?.rawTranscript ?? '');
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    for (final c in [
+      _name, _phone, _address, _date, _time, _place, _offence, _accused,
+      _narration,
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
+  void _toast(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? AppTheme.error : AppTheme.success,
+      ),
+    );
+  }
+
+  ReportProvider get _provider => context.read<ReportProvider>();
+
+  // ── Checks shown before sending ───────────────────────────────────────────
+
+  List<(String, bool, String)> _checks(PoliceReport r) {
+    final phoneDigits = r.complainantPhone.replaceAll(RegExp(r'\D'), '');
+    return [
+      (
+        'Complainant name',
+        r.complainantName.trim().isNotEmpty,
+        'Enter the complainant’s name.'
+      ),
+      (
+        'Date of occurrence',
+        r.occurrenceDate.trim().isNotEmpty,
+        'The date was not found in the statement. Please enter it.'
+      ),
+      (
+        'Place of occurrence',
+        r.placeOfOccurrence.trim().isNotEmpty,
+        'The place was not found in the statement. Please enter it.'
+      ),
+      (
+        'Nature of offence',
+        r.natureOfOffence.trim().isNotEmpty &&
+            !r.natureOfOffence.startsWith('Cognisable offence'),
+        'The offence could not be classified. Choose or type one.'
+      ),
+      (
+        'Narration',
+        r.rawTranscript.trim().isNotEmpty,
+        'The brief facts are empty.'
+      ),
+      (
+        'Phone number',
+        r.complainantPhone.trim().isEmpty || phoneDigits.length >= 10,
+        'The phone number looks incomplete.'
+      ),
+      (
+        'Speech recognition',
+        !r.isLowConfidence,
+        'Speech recognition was uncertain. Read the narration carefully.'
+      ),
+    ];
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  Future<void> _sendForReview(PoliceReport r) async {
+    final problems = _checks(r).where((c) => !c.$2).toList();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send for review?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your station supervisor will review this FIR. You cannot edit it while it is in review.',
+            ),
+            if (problems.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text('Still to check:',
+                  style: GoogleFonts.notoSans(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              for (final p in problems)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text('•  ${p.$1}'),
+                ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Go back'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(problems.isEmpty ? 'Send' : 'Send anyway'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _working = true);
+    try {
+      await _provider.submitForReview(r.id);
+      _toast('Sent to your supervisor for review.');
+    } catch (e) {
+      _toast(ApiService.describe(e), error: true);
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _approve(PoliceReport r) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Approve this FIR?'),
+        content: const Text(
+            'The FIR will be locked. The officer can no longer edit it.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Approve')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _decide(r, 'approved', '');
+  }
+
+  Future<void> _returnToOfficer(PoliceReport r) async {
+    final ctrl = TextEditingController();
+    final comment = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Return for correction'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Explain what the officer needs to correct',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              if (ctrl.text.trim().isEmpty) return;
+              Navigator.pop(ctx, ctrl.text.trim());
+            },
+            child: const Text('Return'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (comment == null) return;
+    await _decide(r, 'returned', comment);
+  }
+
+  Future<void> _decide(PoliceReport r, String decision, String comment) async {
+    setState(() => _working = true);
+    try {
+      await _provider.reviewDecision(r, decision: decision, comment: comment);
+      _toast(decision == 'approved'
+          ? 'FIR approved.'
+          : 'Returned to the officer.');
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      _toast(ApiService.describe(e), error: true);
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _exportPdf(PoliceReport r, {bool share = false}) async {
+    setState(() => _busy = true);
+    try {
+      final doc = await FirPdf.build(r);
+      if (share) {
+        await Printing.sharePdf(
+          bytes: await doc.save(),
+          filename: '${r.reportNumber}.pdf',
+        );
+      } else {
+        await Printing.layoutPdf(
+          onLayout: (_) => doc.save(),
+          name: r.reportNumber,
+        );
+      }
+    } catch (_) {
+      _toast(
+        'Could not create the PDF. Fonts are downloaded the first time, so check your internet connection and try again.',
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // ── UI ────────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          child: Row(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: widget.section.lowConfidence
-                      ? AppTheme.warning.withOpacity(0.25)
-                      : AppTheme.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    '${widget.index}',
+    final provider = context.watch<ReportProvider>();
+    final report = provider.currentReport;
+    if (report == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('FIR draft')),
+        body: const Center(child: Text('No report selected')),
+      );
+    }
+    final readOnly = widget.reviewMode || report.isLocked;
+    final gutter = contentGutter(context, maxWidth: 760);
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: Text(report.reportNumber),
+        actions: [
+          IconButton(
+            tooltip: 'Share as PDF',
+            onPressed: _busy ? null : () => _exportPdf(report, share: true),
+            icon: const Icon(Icons.ios_share, size: 20),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(gutter, 20, gutter, 40),
+        children: [
+          _banner(report),
+          _summaryCard(report, provider.isUnsynced(report.id)),
+          const SizedBox(height: 16),
+          if (!readOnly) ...[
+            _checklist(report),
+            const SizedBox(height: 16),
+          ],
+          _detailsPanel(report, readOnly),
+          const SizedBox(height: 16),
+          _narrationPanel(readOnly),
+          const SizedBox(height: 20),
+          _actions(report),
+        ],
+      ),
+    );
+  }
+
+  Widget _banner(PoliceReport r) {
+    Color color;
+    IconData icon;
+    String title;
+    String body;
+    if (widget.reviewMode) {
+      color = AppTheme.secondary;
+      icon = Icons.fact_check_outlined;
+      title = 'Review this FIR';
+      body =
+          'Submitted by ${r.officerName.isEmpty ? r.officerId : r.officerName}. Read the details, then approve or return it with a comment.';
+    } else if (r.isReturned) {
+      color = AppTheme.error;
+      icon = Icons.reply_outlined;
+      title = 'Returned for correction';
+      body =
+          '${r.reviewComment}${r.reviewedBy.isEmpty ? '' : '\n— ${r.reviewedBy}'}';
+    } else if (r.isPending) {
+      color = AppTheme.secondary;
+      icon = Icons.hourglass_top_outlined;
+      title = 'Sent for review';
+      body = 'Editing is locked until your supervisor decides.';
+    } else if (r.isApproved) {
+      color = AppTheme.success;
+      icon = Icons.verified_outlined;
+      title = 'Approved';
+      body =
+          '${r.reviewedBy.isEmpty ? 'Approved by your supervisor.' : 'Approved by ${r.reviewedBy}.'} This FIR is locked.';
+    } else {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(4),
+        border: Border(left: BorderSide(color: color, width: 4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
                     style: GoogleFonts.notoSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: color)),
+                const SizedBox(height: 2),
+                Text(body,
+                    style: GoogleFonts.notoSans(
+                        fontSize: 13,
+                        color: AppTheme.textPrimary,
+                        height: 1.45)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCard(PoliceReport r, bool unsynced) {
+    Widget item(String label, String value) => Padding(
+          padding: const EdgeInsets.only(right: 28, top: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label,
+                  style: GoogleFonts.notoSans(
+                      fontSize: 11, color: Colors.white60)),
+              Text(value.isEmpty ? '—' : value,
+                  style: GoogleFonts.notoSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white)),
+            ],
+          ),
+        );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      decoration: const BoxDecoration(
+        color: AppTheme.primaryDark,
+        borderRadius: BorderRadius.all(Radius.circular(4)),
+        border: Border(bottom: BorderSide(color: AppTheme.accent, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
               Expanded(
                 child: Text(
-                  widget.section.title,
+                  r.reportNumber,
                   style: GoogleFonts.notoSans(
-                    fontSize: 14,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ),
-              Icon(
-                _isExpanded
-                    ? Icons.keyboard_arrow_up
-                    : Icons.keyboard_arrow_down,
-                color: AppTheme.textMuted,
-                size: 20,
+              ReportStatusBadge(report: r),
+            ],
+          ),
+          Wrap(
+            children: [
+              item('Station', r.station),
+              item('District', r.district),
+              item('Recorded by',
+                  [r.officerRank, r.officerName].where((s) => s.isNotEmpty).join(' ')),
+              item('Created', DateFormat('dd MMM yyyy, HH:mm').format(r.createdAt)),
+              if (r.confidenceScore > 0)
+                item('Speech confidence',
+                    '${(r.confidenceScore * 100).round()}%'),
+            ],
+          ),
+          if (unsynced) ...[
+            const SizedBox(height: 10),
+            const Row(
+              children: [
+                Icon(Icons.cloud_off_outlined,
+                    size: 14, color: AppTheme.accentLight),
+                SizedBox(width: 6),
+                Text(
+                  'Changes saved on this device. They will upload when you are online.',
+                  style: TextStyle(fontSize: 12, color: AppTheme.accentLight),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _checklist(PoliceReport r) {
+    final checks = _checks(r);
+    final open = checks.where((c) => !c.$2).toList();
+    return FormPanel(
+      title: 'Check before sending',
+      subtitle: open.isEmpty
+          ? 'Everything required is filled in.'
+          : '${open.length} item${open.length == 1 ? '' : 's'} need your attention.',
+      child: open.isEmpty
+          ? Row(
+              children: [
+                const Icon(Icons.check_circle,
+                    size: 18, color: AppTheme.success),
+                const SizedBox(width: 8),
+                Text('Ready to send for review.',
+                    style: GoogleFonts.notoSans(fontSize: 13)),
+              ],
+            )
+          : Column(
+              children: [
+                for (final c in open)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 18, color: AppTheme.warning),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: '${c.$1}. ',
+                                  style: GoogleFonts.notoSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                                TextSpan(
+                                  text: c.$3,
+                                  style: GoogleFonts.notoSans(
+                                      fontSize: 13,
+                                      color: AppTheme.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Widget _detailsPanel(PoliceReport r, bool readOnly) {
+    final wide = MediaQuery.of(context).size.width >= 640;
+    Widget pair(Widget a, Widget b) => wide
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: a),
+              const SizedBox(width: 14),
+              Expanded(child: b),
+            ],
+          )
+        : Column(children: [a, const SizedBox(height: 14), b]);
+
+    return FormPanel(
+      title: 'FIR details',
+      subtitle: readOnly
+          ? 'Read only'
+          : 'Details are filled from the statement. Correct anything that is wrong.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          NyayaTextField(
+            label: 'Complainant name',
+            controller: _name,
+            readOnly: readOnly,
+            onChanged: (v) => _provider.updateDraftFields(complainantName: v),
+          ),
+          const SizedBox(height: 14),
+          pair(
+            NyayaTextField(
+              label: 'Phone number',
+              controller: _phone,
+              readOnly: readOnly,
+              keyboardType: TextInputType.phone,
+              onChanged: (v) =>
+                  _provider.updateDraftFields(complainantPhone: v),
+            ),
+            NyayaTextField(
+              label: 'Address',
+              controller: _address,
+              readOnly: readOnly,
+              onChanged: (v) =>
+                  _provider.updateDraftFields(complainantAddress: v),
+            ),
+          ),
+          const SizedBox(height: 14),
+          pair(
+            NyayaTextField(
+              label: 'Date of occurrence',
+              controller: _date,
+              readOnly: readOnly,
+              onChanged: (v) => _provider.updateDraftFields(occurrenceDate: v),
+            ),
+            NyayaTextField(
+              label: 'Time of occurrence',
+              controller: _time,
+              readOnly: readOnly,
+              onChanged: (v) => _provider.updateDraftFields(occurrenceTime: v),
+            ),
+          ),
+          const SizedBox(height: 14),
+          NyayaTextField(
+            label: 'Place of occurrence',
+            controller: _place,
+            readOnly: readOnly,
+            onChanged: (v) =>
+                _provider.updateDraftFields(placeOfOccurrence: v),
+          ),
+          const SizedBox(height: 14),
+          NyayaTextField(
+            label: 'Nature of offence',
+            controller: _offence,
+            readOnly: readOnly,
+            onChanged: (v) => _provider.updateDraftFields(natureOfOffence: v),
+          ),
+          if (!readOnly) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 0,
+              children: [
+                for (final o in _offences)
+                  ActionChip(
+                    label: Text(o, style: const TextStyle(fontSize: 12)),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: AppTheme.divider),
+                    onPressed: () {
+                      _offence.text = o;
+                      _provider.updateDraftFields(natureOfOffence: o);
+                    },
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          NyayaTextField(
+            label: 'Particulars of accused (if known)',
+            controller: _accused,
+            readOnly: readOnly,
+            onChanged: (v) => _provider.updateDraftFields(accusedDetails: v),
+          ),
+          const SizedBox(height: 14),
+          Text('Language of statement',
+              style: GoogleFonts.notoSans(
+                  fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<Language>(
+            value: r.language,
+            isExpanded: true,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: readOnly ? const Color(0xFFF3F5F8) : Colors.white,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+            items: [
+              for (final l in Language.values)
+                DropdownMenuItem(
+                  value: l,
+                  child: Text('${l.name}  (${l.nativeName})'),
+                ),
+            ],
+            onChanged: readOnly
+                ? null
+                : (l) {
+                    if (l != null) _provider.updateDraftFields(language: l);
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _narrationPanel(bool readOnly) {
+    return FormPanel(
+      title: 'Brief facts of the case',
+      subtitle: readOnly
+          ? 'Read only'
+          : 'The complainant’s statement. Edit to correct recognition errors.',
+      child: NyayaTextField(
+        label: 'Narration',
+        controller: _narration,
+        readOnly: readOnly,
+        minLines: 6,
+        maxLines: 14,
+        onChanged: (v) => _provider.updateDraftFields(narration: v),
+      ),
+    );
+  }
+
+  Widget _actions(PoliceReport r) {
+    final pdfButtons = Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _busy ? null : () => _exportPdf(r),
+            icon: _busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: Text(_busy ? 'Preparing…' : 'Preview / print PDF'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.primary,
+              side: const BorderSide(color: AppTheme.primary),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (widget.reviewMode) {
+      return Column(
+        children: [
+          pdfButtons,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _working ? null : () => _returnToOfficer(r),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.error,
+                    side: const BorderSide(color: AppTheme.error),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Return with comment'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _working ? null : () => _approve(r),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.success),
+                  child: Text(_working ? 'Please wait…' : 'Approve'),
+                ),
               ),
             ],
           ),
-        ),
-        if (_isExpanded) ...[
-          const SizedBox(height: 10),
-          Container(
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        if (!r.isLocked) ...[
+          SizedBox(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: widget.section.lowConfidence
-                  ? AppTheme.warning.withOpacity(0.12)
-                  : AppTheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(6),
-              border: widget.section.lowConfidence
-                  ? Border.all(color: AppTheme.warning.withOpacity(0.6))
-                  : null,
-            ),
-            child: TextField(
-              controller: _controller,
-              maxLines: null,
-              onChanged: widget.onChanged,
-              style: GoogleFonts.notoSans(
-                fontSize: 13,
-                color: AppTheme.textSecondary,
-                height: 1.6,
-              ),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
+            child: ElevatedButton.icon(
+              onPressed: _working ? null : () => _sendForReview(r),
+              icon: const Icon(Icons.send_outlined, size: 18),
+              label: Text(_working ? 'Sending…' : 'Send for review'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
           ),
-        ],
-        if (!widget.isLast) ...[
-          const SizedBox(height: 12),
-          const Divider(color: AppTheme.divider, height: 1),
           const SizedBox(height: 12),
         ],
+        pdfButtons,
       ],
     );
   }

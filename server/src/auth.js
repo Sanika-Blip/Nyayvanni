@@ -40,6 +40,15 @@ function authRequired(roles) {
         return res.status(401).json({ error: "Account disabled or removed" });
       }
       user.officerId = officer.officerId; // always use the current ID, not the one baked into the token
+      // A temporary password must be replaced before anything else is allowed.
+      const isMe = (req.originalUrl || "").split("?")[0] === "/api/me";
+      if (officer.mustChangePassword && !isMe) {
+        return res.status(403).json({ error: "Change your temporary password to continue", code: "PASSWORD_CHANGE_REQUIRED" });
+      }
+      user.officerRole = officer.role || "officer";
+      user.station = officer.station;
+      user.district = officer.district;
+      user.fullName = officer.fullName;
     }
     req.user = user;
     next();
@@ -50,4 +59,10 @@ async function checkPassword(hash, password) {
   return bcrypt.compare(password, hash);
 }
 
-module.exports = { sign, authRequired, checkPassword };
+// Supervisors are officers with the supervisor role; they review FIR drafts from their own station.
+function supervisorOnly(req, res, next) {
+  if (req.user && req.user.role === "officer" && req.user.officerRole === "supervisor") return next();
+  return res.status(403).json({ error: "Supervisor access required" });
+}
+
+module.exports = { sign, authRequired, checkPassword, supervisorOnly };

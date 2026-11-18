@@ -138,6 +138,7 @@ const titles = {
   drafts: ["FIR drafts", "Draft FIRs recorded by officers through the app."],
   stations: ["Police stations", "Stations officers can choose when registering."],
   admins: ["Administrators", "People who can sign in to this console."],
+  audit: ["Audit log", "Who did what, and when. Passwords are never recorded."],
   emails: ["Email log", "Credential emails sent or stored. Passwords are removed once an email is delivered."],
 };
 
@@ -153,6 +154,7 @@ async function render(tab) {
     if (tab === "stations") await renderStations();
     if (tab === "admins") await renderAdmins();
     if (tab === "emails") await renderEmails();
+    if (tab === "audit") await renderAudit();
     if (tab !== "overview") addSearch();
     refreshPendingBadge();
   } catch (err) {
@@ -323,12 +325,13 @@ async function renderOfficers() {
   panel.innerHTML = `
     <div class="toolbar"><button id="add-off">Add officer</button></div>
     <table>
-      <thead><tr><th>Officer ID</th><th>Name</th><th>Email</th><th>Station</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Officer ID</th><th>Name</th><th>Role</th><th>Email</th><th>Station</th><th>Status</th><th></th></tr></thead>
       <tbody>
         ${data.map((o) => `
           <tr>
             <td><code>${esc(o.officerId)}</code></td>
             <td>${esc(o.fullName)}<br/><span class="muted">${esc(o.rank || "")}</span></td>
+            <td>${o.role === "supervisor" ? "Supervisor" : "Officer"}</td>
             <td>${esc(o.email)}<br/>${esc(o.phone || "")}</td>
             <td>${esc(o.station || "")} / ${esc(o.district || "")}</td>
             <td><span class="badge ${esc(o.status)}">${esc(o.status)}</span></td>
@@ -336,7 +339,7 @@ async function renderOfficers() {
               <button data-edit-off="${esc(o.id)}">Edit</button>
               <button data-del-off="${esc(o.id)}" class="danger">Delete</button>
             `)}</td>
-          </tr>`).join("") || `<tr><td colspan="6" class="empty">No officers yet.</td></tr>`}
+          </tr>`).join("") || `<tr><td colspan="7" class="empty">No officers yet.</td></tr>`}
       </tbody>
     </table>
   `;
@@ -356,7 +359,18 @@ function officerForm(row) {
     ${field("station", "Station", row?.station)}
     ${field("district", "District", row?.district)}
     ${field("state", "State", row?.state)}
-    ${field("status", "Status (active/disabled)", row?.status || "active")}
+    <label>Role
+      <select name="role">
+        <option value="officer" ${(row?.role || "officer") === "officer" ? "selected" : ""}>Officer</option>
+        <option value="supervisor" ${row?.role === "supervisor" ? "selected" : ""}>Station supervisor (reviews FIRs from the same station and district)</option>
+      </select>
+    </label>
+    <label>Status
+      <select name="status">
+        <option value="active" ${(row?.status || "active") === "active" ? "selected" : ""}>Active</option>
+        <option value="disabled" ${row?.status === "disabled" ? "selected" : ""}>Disabled (cannot sign in)</option>
+      </select>
+    </label>
     ${field("password", row ? "New password (blank = keep)" : "Password (blank = auto)", "", "text")}
     <div class="toolbar"><button type="submit">Save</button><button type="button" class="ghost" id="cancel">Cancel</button></div>
   `);
@@ -373,12 +387,23 @@ function officerForm(row) {
   };
 }
 
+function reviewBadge(d) {
+  const map = {
+    pending: ["In review", "pending"],
+    approved: ["Approved", "approved"],
+    returned: ["Returned", "rejected"],
+  };
+  const [label, cls] = map[d.reviewStatus] || ["Draft", "draft"];
+  const note = d.reviewStatus === "approved" || d.reviewStatus === "returned" ? `<br/><span class="hint">${esc(d.reviewedBy || "")}</span>` : "";
+  return `<span class="badge ${cls}">${label}</span>${note}`;
+}
+
 async function renderDrafts() {
   const { data } = await api("/api/drafts");
   panel.innerHTML = `
     <div class="toolbar"><button id="add-draft">Add FIR draft</button></div>
     <table>
-      <thead><tr><th>Number</th><th>Officer</th><th>Complainant</th><th>Offence</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Number</th><th>Officer</th><th>Complainant</th><th>Offence</th><th>Review</th><th></th></tr></thead>
       <tbody>
         ${data.map((d) => `
           <tr>
@@ -386,7 +411,7 @@ async function renderDrafts() {
             <td>${esc(d.officerId || "")}<br/>${esc(d.officerName || "")}</td>
             <td>${esc(d.complainantName || "")}</td>
             <td>${esc(d.natureOfOffence || d.summary || "")}</td>
-            <td><span class="badge ${esc(d.status || "draft")}">${esc(d.status || "draft")}</span></td>
+            <td>${reviewBadge(d)}</td>
             <td>${actions(`
               <button data-edit-d="${esc(d.id)}">Edit</button>
               <button data-del-d="${esc(d.id)}" class="danger">Delete</button>
@@ -512,6 +537,26 @@ function adminForm(row) {
     showFlash("Admin saved");
     render("admins");
   };
+}
+
+async function renderAudit() {
+  const { data } = await api("/api/admin/audit");
+  panel.innerHTML = `
+    <table>
+      <thead><tr><th>When</th><th>Who</th><th>Role</th><th>Action</th><th>Record</th><th>Note</th></tr></thead>
+      <tbody>
+        ${data.map((e) => `
+          <tr>
+            <td>${esc(new Date(e.at).toLocaleString())}</td>
+            <td>${esc(e.actor)}</td>
+            <td>${esc(e.role)}</td>
+            <td>${esc(e.action)}</td>
+            <td>${esc(e.target || "")}</td>
+            <td>${esc(e.detail || "")}</td>
+          </tr>`).join("") || `<tr><td colspan="6" class="empty">Nothing recorded yet.</td></tr>`}
+      </tbody>
+    </table>
+  `;
 }
 
 async function renderEmails() {

@@ -11,6 +11,8 @@ class OfficerUser {
   final String state;
   final String address;
   final String status;
+  final String role;
+  final bool mustChangePassword;
 
   const OfficerUser({
     required this.id,
@@ -25,7 +27,11 @@ class OfficerUser {
     this.state = '',
     this.address = '',
     this.status = 'active',
+    this.role = 'officer',
+    this.mustChangePassword = false,
   });
+
+  bool get isSupervisor => role == 'supervisor';
 
   String get initials {
     final parts = fullName.trim().split(RegExp(r'\s+'));
@@ -48,6 +54,8 @@ class OfficerUser {
       state: json['state'] as String? ?? '',
       address: json['address'] as String? ?? '',
       status: json['status'] as String? ?? 'active',
+      role: json['role'] as String? ?? 'officer',
+      mustChangePassword: json['mustChangePassword'] as bool? ?? false,
     );
   }
 
@@ -64,5 +72,7 @@ class OfficerUser {
         'state': state,
         'address': address,
         'status': status,
+        'role': role,
+        'mustChangePassword': mustChangePassword,
       };
 }

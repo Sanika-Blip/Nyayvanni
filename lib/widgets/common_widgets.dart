@@ -344,6 +344,8 @@ class NyayaTextField extends StatelessWidget {
 
   final bool obscureText;
   final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
+  final int? minLines;
 
   const NyayaTextField({
     super.key,
@@ -356,6 +358,8 @@ class NyayaTextField extends StatelessWidget {
     this.maxLines = 1,
     this.obscureText = false,
     this.keyboardType,
+    this.onChanged,
+    this.minLines,
   });
 
   @override
@@ -376,6 +380,8 @@ class NyayaTextField extends StatelessWidget {
           controller: controller,
           readOnly: readOnly,
           onTap: onTap,
+          onChanged: onChanged,
+          minLines: minLines,
           maxLines: obscureText ? 1 : maxLines,
           obscureText: obscureText,
           keyboardType: keyboardType,
@@ -391,7 +397,7 @@ class NyayaTextField extends StatelessWidget {
               color: AppTheme.textMuted,
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: readOnly ? const Color(0xFFF3F5F8) : Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide.none,
@@ -563,6 +569,78 @@ class FormPanel extends StatelessWidget {
           Padding(padding: const EdgeInsets.all(16), child: child),
         ],
       ),
+    );
+  }
+}
+
+// ─── Report status ───────────────────────────────────────────────────────────
+
+/// Status tag derived from the review workflow (Draft, In review, Approved, Returned).
+class ReportStatusBadge extends StatelessWidget {
+  final PoliceReport report;
+  const ReportStatusBadge({super.key, required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fg;
+    final Color bg;
+    switch (report.reviewStatus) {
+      case 'pending':
+        fg = AppTheme.secondary;
+        bg = AppTheme.secondaryLight.withOpacity(0.5);
+        break;
+      case 'approved':
+        fg = AppTheme.success;
+        bg = const Color(0xFFE3F3E8);
+        break;
+      case 'returned':
+        fg = AppTheme.error;
+        bg = const Color(0xFFFBE4E2);
+        break;
+      default:
+        fg = AppTheme.warning;
+        bg = AppTheme.warning.withOpacity(0.12);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: fg.withOpacity(0.35)),
+      ),
+      child: Text(
+        report.statusLabel.toUpperCase(),
+        style: GoogleFonts.notoSans(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: fg,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+}
+
+/// Small marker shown when a report has changes the server has not confirmed.
+class SyncTag extends StatelessWidget {
+  const SyncTag({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.cloud_off_outlined, size: 13, color: AppTheme.warning),
+        const SizedBox(width: 3),
+        Text(
+          'Not synced',
+          style: GoogleFonts.notoSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.warning,
+          ),
+        ),
+      ],
     );
   }
 }

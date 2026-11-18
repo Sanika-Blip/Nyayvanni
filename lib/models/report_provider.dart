@@ -9,29 +9,40 @@ import '../services/fir_parser.dart';
 class ReportProvider extends ChangeNotifier {
   static const _storageKey = 'nyayvanni_fir_drafts';
   static const _pendingDeletesKey = 'nyayvanni_pending_deletes';
+  static const _unsyncedKey = 'nyayvanni_unsynced';
 
   List<PoliceReport> _reports = [];
+  List<PoliceReport> _queue = [];
   PoliceReport? _currentReport;
   bool _isLoading = false;
   Timer? _syncTimer;
+  final Set<String> _unsynced = {};
 
   List<PoliceReport> get reports => _reports;
+  List<PoliceReport> get reviewQueue => _queue;
   PoliceReport? get currentReport => _currentReport;
   bool get isLoading => _isLoading;
 
-  List<PoliceReport> get draftReports =>
-      _reports.where((r) => r.status == ReportStatus.draft).toList();
+  /// True when this report has changes the server has not confirmed yet.
+  bool isUnsynced(String id) => _unsynced.contains(id);
 
-  List<PoliceReport> get completedReports =>
-      _reports.where((r) => r.status == ReportStatus.completed).toList();
+  List<PoliceReport> get draftReports => _reports
+      .where((r) => !r.isLocked)
+      .toList(); // drafts, including ones returned for correction
 
-  List<PoliceReport> get submittedReports =>
-      _reports.where((r) => r.status == ReportStatus.submitted).toList();
+  List<PoliceReport> get pendingReports =>
+      _reports.where((r) => r.isPending).toList();
+
+  List<PoliceReport> get approvedReports =>
+      _reports.where((r) => r.isApproved).toList();
 
   Future<List<PoliceReport>> _readLocal() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_storageKey);
+      _unsynced
+        ..clear()
+        ..addAll(prefs.getStringList(_unsyncedKey) ?? const []);
       if (raw == null || raw.isEmpty) return [];
       final list = jsonDecode(raw) as List<dynamic>;
       return list
@@ -52,6 +63,28 @@ class ReportProvider extends ChangeNotifier {
     await prefs.setStringList(_pendingDeletesKey, ids.toList());
   }
 
+  Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _storageKey,
+      jsonEncode(_reports.map((r) => r.toJson()).toList()),
+    );
+    await prefs.setStringList(_unsyncedKey, _unsynced.toList());
+  }
+
+  /// Uploads one report and records whether the server confirmed it.
+  Future<bool> _upload(PoliceReport r) async {
+    final ok = await ApiService.upsertDraft(r);
+    if (ok) {
+      _unsynced.remove(r.id);
+    } else {
+      _unsynced.add(r.id);
+    }
+    await _persist();
+    notifyListeners();
+    return ok;
+  }
+
   /// Loads reports from the server and merges them with anything saved on this
   /// device. Reports created or edited offline are kept and uploaded, never
   /// overwritten by an older server copy.
@@ -70,7 +103,7 @@ class ReportProvider extends ChangeNotifier {
 
     try {
       // Finish deletions that could not reach the server earlier.
-      var pending = await _readPendingDeletes();
+      final pending = await _readPendingDeletes();
       for (final id in pending.toList()) {
         if (await ApiService.deleteDraft(id)) pending.remove(id);
       }
@@ -85,16 +118,23 @@ class ReportProvider extends ChangeNotifier {
       for (final l in local) {
         if (pending.contains(l.id)) continue;
         final s = byId[l.id];
-        if (s == null || l.updatedAt.isAfter(s.updatedAt)) {
+        if (s == null) {
           byId[l.id] = l;
           toUpload.add(l);
+        } else if (l.updatedAt.isAfter(s.updatedAt) && !s.isLocked) {
+          // Local edits are newer. A report that is with the reviewer is
+          // owned by the server copy, so it is never overwritten.
+          byId[l.id] = l;
+          toUpload.add(l);
+        } else {
+          _unsynced.remove(l.id);
         }
       }
       _reports = byId.values.toList()
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       await _persist();
       for (final r in toUpload) {
-        await ApiService.upsertDraft(r);
+        await _upload(r);
       }
     } catch (_) {
       // Offline or server error: keep what is on the device.
@@ -105,12 +145,27 @@ class ReportProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _storageKey,
-      jsonEncode(_reports.map((r) => r.toJson()).toList()),
-    );
+  /// Supervisors: FIRs from the same station waiting for a decision.
+  Future<void> loadReviewQueue() async {
+    try {
+      _queue = await ApiService.fetchReviewQueue();
+    } catch (_) {
+      // keep the last known queue
+    }
+    notifyListeners();
+  }
+
+  /// Approves or returns a FIR. Throws [ApiException] with a readable message.
+  Future<void> reviewDecision(
+    PoliceReport report, {
+    required String decision,
+    String comment = '',
+  }) async {
+    await ApiService.reviewDraft(report.id,
+        decision: decision, comment: comment);
+    _queue.removeWhere((r) => r.id == report.id);
+    if (_currentReport?.id == report.id) _currentReport = null;
+    notifyListeners();
   }
 
   /// Clears everything held for the signed-in officer (called on sign-out so
@@ -118,10 +173,13 @@ class ReportProvider extends ChangeNotifier {
   Future<void> clear() async {
     _syncTimer?.cancel();
     _reports = [];
+    _queue = [];
+    _unsynced.clear();
     _currentReport = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_storageKey);
     await prefs.remove(_pendingDeletesKey);
+    await prefs.remove(_unsyncedKey);
     notifyListeners();
   }
 
@@ -131,7 +189,7 @@ class ReportProvider extends ChangeNotifier {
     _syncTimer = Timer(const Duration(milliseconds: 800), () {
       final r = _currentReport;
       if (r != null && _reports.any((x) => x.id == r.id)) {
-        ApiService.upsertDraft(r);
+        _upload(r);
       }
     });
   }
@@ -151,6 +209,7 @@ class ReportProvider extends ChangeNotifier {
     required String district,
     String officerId = '',
     String officerName = '',
+    String officerRank = '',
     String badgeNumber = '',
   }) {
     _currentReport = PoliceReport(
@@ -162,6 +221,7 @@ class ReportProvider extends ChangeNotifier {
       district: district,
       officerId: officerId,
       officerName: officerName,
+      officerRank: officerRank,
       badgeNumber: badgeNumber,
     );
     notifyListeners();
@@ -216,10 +276,11 @@ class ReportProvider extends ChangeNotifier {
     _currentReport!.sections[index].content = content;
     _currentReport!.updatedAt = DateTime.now();
     notifyListeners();
-    _persist();
-    _scheduleSync();
+    _markChanged();
   }
 
+  /// Edits one or more FIR fields. The text sections are rebuilt from the
+  /// fields so the form, PDF and server copy always agree.
   void updateDraftFields({
     String? complainantName,
     String? complainantPhone,
@@ -231,8 +292,10 @@ class ReportProvider extends ChangeNotifier {
     String? placeOfOccurrence,
     String? natureOfOffence,
     String? accusedDetails,
+    String? narration,
+    Language? language,
   }) {
-    if (_currentReport == null) return;
+    if (_currentReport == null || _currentReport!.isLocked) return;
     final r = _currentReport!;
     if (complainantName != null) r.complainantName = complainantName;
     if (complainantPhone != null) r.complainantPhone = complainantPhone;
@@ -244,13 +307,39 @@ class ReportProvider extends ChangeNotifier {
     if (placeOfOccurrence != null) r.placeOfOccurrence = placeOfOccurrence;
     if (natureOfOffence != null) r.natureOfOffence = natureOfOffence;
     if (accusedDetails != null) r.accusedDetails = accusedDetails;
+    if (language != null) r.language = language;
+    if (narration != null) {
+      r.rawTranscript = narration;
+      r.summary = FirParser.summarise(narration);
+    }
+    r.sections = FirParser.toSections(
+      ParsedFirFields(
+        complainantName: r.complainantName,
+        occurrenceDate: r.occurrenceDate,
+        occurrenceTime: r.occurrenceTime,
+        placeOfOccurrence: r.placeOfOccurrence,
+        natureOfOffence: r.natureOfOffence,
+        accusedDetails: r.accusedDetails,
+        incidentDescription: r.rawTranscript,
+        summary: r.summary,
+      ),
+      draft: r,
+    );
     r.updatedAt = DateTime.now();
     notifyListeners();
+    _markChanged();
+  }
+
+  void _markChanged() {
+    final r = _currentReport;
+    if (r != null && _reports.any((x) => x.id == r.id)) {
+      _unsynced.add(r.id);
+    }
     _persist();
     _scheduleSync();
   }
 
-  Future<void> saveReport({ReportStatus status = ReportStatus.completed}) async {
+  Future<void> saveReport({ReportStatus status = ReportStatus.draft}) async {
     if (_currentReport == null) return;
 
     _currentReport!.status = status;
@@ -263,28 +352,39 @@ class ReportProvider extends ChangeNotifier {
       _reports.insert(0, _currentReport!);
     }
 
+    _unsynced.add(_currentReport!.id);
     await _persist();
     notifyListeners();
     // A failed upload is retried automatically the next time drafts load.
-    await ApiService.upsertDraft(_currentReport!);
+    await _upload(_currentReport!);
   }
 
-  Future<void> submitReport(String reportId) async {
+  /// Sends the current draft to the station supervisor for review.
+  /// Throws [ApiException] with a readable message on failure.
+  Future<void> submitForReview(String reportId) async {
     final idx = _reports.indexWhere((r) => r.id == reportId);
-    if (idx >= 0) {
-      _reports[idx].status = ReportStatus.submitted;
-      _reports[idx].updatedAt = DateTime.now();
-      if (_currentReport?.id == reportId) {
-        _currentReport!.status = ReportStatus.submitted;
-      }
-      await _persist();
-      notifyListeners();
-      await ApiService.upsertDraft(_reports[idx]);
+    if (idx < 0) return;
+    // Make sure the server has the latest version first.
+    _syncTimer?.cancel();
+    final ok = await _upload(_reports[idx]);
+    if (!ok) {
+      throw ApiException(
+        'Could not reach the server. Connect to the network and try again.',
+      );
     }
+    final updated = await ApiService.submitDraft(reportId);
+    _reports[idx] = updated;
+    if (_currentReport?.id == reportId) _currentReport = updated;
+    _unsynced.remove(reportId);
+    await _persist();
+    notifyListeners();
   }
 
   Future<void> deleteReport(String reportId) async {
+    final target = _reports.where((r) => r.id == reportId).firstOrNull;
+    if (target != null && target.isLocked) return;
     _reports.removeWhere((r) => r.id == reportId);
+    _unsynced.remove(reportId);
     if (_currentReport?.id == reportId) {
       _currentReport = null;
     }

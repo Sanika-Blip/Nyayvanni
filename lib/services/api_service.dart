@@ -214,4 +214,41 @@ class ApiService {
       return false;
     }
   }
+
+  /// Sends a finished draft to the station supervisor. Throws [ApiException] with
+  /// a readable message (for example when required fields are missing).
+  static Future<PoliceReport> submitDraft(String id) async {
+    final response = await http
+        .post(Uri.parse('$baseUrl/api/drafts/$id/submit'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final body = await _decode(response);
+    return PoliceReport.fromJson(Map<String, dynamic>.from(body['data']));
+  }
+
+  static Future<List<PoliceReport>> fetchReviewQueue() async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/review/queue'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    final body = await _decode(response);
+    return (body['data'] as List<dynamic>? ?? [])
+        .map((e) => PoliceReport.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  /// decision is 'approved' or 'returned'; a comment is required to return.
+  static Future<PoliceReport> reviewDraft(
+    String id, {
+    required String decision,
+    String comment = '',
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/review/$id'),
+          headers: _headers,
+          body: jsonEncode({'decision': decision, 'comment': comment}),
+        )
+        .timeout(const Duration(seconds: 10));
+    final body = await _decode(response);
+    return PoliceReport.fromJson(Map<String, dynamic>.from(body['data']));
+  }
 }

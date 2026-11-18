@@ -6,7 +6,9 @@ import '../models/auth_provider.dart';
 import '../widgets/common_widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  /// First sign-in with a temporary password: only the password form is shown.
+  final bool forcePasswordChange;
+  const ProfileScreen({super.key, this.forcePasswordChange = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -111,10 +113,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(title: const Text('My profile')),
+      appBar: AppBar(
+        title: Text(widget.forcePasswordChange
+            ? 'Set your password'
+            : 'My profile'),
+        automaticallyImplyLeading: !widget.forcePasswordChange,
+      ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(gutter, 20, gutter, 40),
         children: [
+          if (widget.forcePasswordChange) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppTheme.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: const Border(
+                    left: BorderSide(color: AppTheme.warning, width: 4)),
+              ),
+              child: Text(
+                'You signed in with a temporary password issued by your administrator. Choose a new password to continue.',
+                style: GoogleFonts.notoSans(fontSize: 13, height: 1.45),
+              ),
+            ),
+          ] else ...[
           // Identity card
           Container(
             padding: const EdgeInsets.all(20),
@@ -220,7 +243,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
 
+          ],
           // Contact details (editable)
+          if (!widget.forcePasswordChange)
           FormPanel(
             title: 'Contact details',
             subtitle: 'You can update your phone number and address.',
@@ -246,7 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          if (!widget.forcePasswordChange) const SizedBox(height: 16),
 
           // Password
           FormPanel(
@@ -295,7 +320,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
               onPressed: () {
-                Navigator.pop(context);
+                if (Navigator.canPop(context)) Navigator.pop(context);
                 context.read<AuthProvider>().logout();
               },
               icon: const Icon(Icons.logout, size: 18),
