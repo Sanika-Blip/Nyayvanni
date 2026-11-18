@@ -13,121 +13,300 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late final TextEditingController _name;
   late final TextEditingController _phone;
-  late final TextEditingController _rank;
-  late final TextEditingController _badge;
-  late final TextEditingController _station;
-  late final TextEditingController _district;
-  late final TextEditingController _state;
   late final TextEditingController _address;
-  late final TextEditingController _password;
+  final _currentPw = TextEditingController();
+  final _newPw = TextEditingController();
+  final _confirmPw = TextEditingController();
+  String? _pwError;
 
   @override
   void initState() {
     super.initState();
     final u = context.read<AuthProvider>().user!;
-    _name = TextEditingController(text: u.fullName);
     _phone = TextEditingController(text: u.phone);
-    _rank = TextEditingController(text: u.rank);
-    _badge = TextEditingController(text: u.badgeNumber);
-    _station = TextEditingController(text: u.station);
-    _district = TextEditingController(text: u.district);
-    _state = TextEditingController(text: u.state);
     _address = TextEditingController(text: u.address);
-    _password = TextEditingController();
   }
 
   @override
   void dispose() {
-    _name.dispose();
     _phone.dispose();
-    _rank.dispose();
-    _badge.dispose();
-    _station.dispose();
-    _district.dispose();
-    _state.dispose();
     _address.dispose();
-    _password.dispose();
+    _currentPw.dispose();
+    _newPw.dispose();
+    _confirmPw.dispose();
     super.dispose();
   }
 
-  Future<void> _save() async {
-    final payload = <String, dynamic>{
-      'fullName': _name.text,
-      'phone': _phone.text,
-      'rank': _rank.text,
-      'badgeNumber': _badge.text,
-      'station': _station.text,
-      'district': _district.text,
-      'state': _state.text,
-      'address': _address.text,
-    };
-    if (_password.text.trim().isNotEmpty) {
-      payload['password'] = _password.text.trim();
-    }
-    final ok = await context.read<AuthProvider>().updateProfile(payload);
-    if (!mounted) return;
+  void _toast(String message, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok
-            ? 'Profile updated'
-            : (context.read<AuthProvider>().error ?? 'Update failed')),
+        content: Text(message),
+        backgroundColor: error ? AppTheme.error : AppTheme.success,
       ),
     );
+  }
+
+  Future<void> _saveContact() async {
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.updateProfile({
+      'phone': _phone.text.trim(),
+      'address': _address.text.trim(),
+    });
+    if (!mounted) return;
+    ok
+        ? _toast('Contact details saved.')
+        : _toast(auth.error ?? 'Could not save. Please try again.',
+            error: true);
+  }
+
+  Future<void> _changePassword() async {
+    final auth = context.read<AuthProvider>();
+    if (_currentPw.text.isEmpty) {
+      setState(() => _pwError = 'Enter your current password.');
+      return;
+    }
+    if (_newPw.text.length < 8) {
+      setState(() => _pwError = 'The new password must be at least 8 characters.');
+      return;
+    }
+    if (_newPw.text != _confirmPw.text) {
+      setState(() => _pwError = 'The new passwords do not match.');
+      return;
+    }
+    setState(() => _pwError = null);
+    final ok = await auth.updateProfile({
+      'currentPassword': _currentPw.text,
+      'password': _newPw.text,
+    });
+    if (!mounted) return;
+    if (ok) {
+      _currentPw.clear();
+      _newPw.clear();
+      _confirmPw.clear();
+      _toast('Password changed.');
+    } else {
+      setState(() => _pwError = auth.error ?? 'Could not change the password.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final u = auth.user!;
+    final gutter = contentGutter(context, maxWidth: 720);
+    final wide = MediaQuery.of(context).size.width >= 640;
+
+    String v(String s) => s.trim().isEmpty ? '—' : s;
+    final service = <(String, String)>[
+      ('Officer ID', v(u.officerId)),
+      ('Badge number', v(u.badgeNumber)),
+      ('Rank', v(u.rank)),
+      ('Police station', v(u.station)),
+      ('District', v(u.district)),
+      ('State', v(u.state)),
+      ('Official email', v(u.email)),
+      ('Account status', u.status == 'active' ? 'Active' : 'Disabled'),
+    ];
+
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: Text('My profile',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-      ),
+      appBar: AppBar(title: const Text('My profile')),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.fromLTRB(gutter, 20, gutter, 40),
         children: [
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Identity card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: AppTheme.primaryDark,
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+              border: Border(
+                bottom: BorderSide(color: AppTheme.accent, width: 3),
+              ),
+            ),
+            child: Row(
               children: [
-                Text('Officer ID: ${u.officerId}',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                Text(u.email,
-                    style: GoogleFonts.inter(color: AppTheme.textMuted)),
-                const SizedBox(height: 16),
-                NyayaTextField(label: 'Full name', controller: _name),
-                const SizedBox(height: 12),
-                NyayaTextField(label: 'Phone', controller: _phone),
-                const SizedBox(height: 12),
-                NyayaTextField(label: 'Rank', controller: _rank),
-                const SizedBox(height: 12),
-                NyayaTextField(label: 'Badge number', controller: _badge),
-                const SizedBox(height: 12),
-                NyayaTextField(label: 'Station', controller: _station),
-                const SizedBox(height: 12),
-                NyayaTextField(label: 'District', controller: _district),
-                const SizedBox(height: 12),
-                NyayaTextField(label: 'State', controller: _state),
-                const SizedBox(height: 12),
-                NyayaTextField(
-                    label: 'Address', controller: _address, maxLines: 2),
-                const SizedBox(height: 12),
-                NyayaTextField(
-                  label: 'New password (optional)',
-                  controller: _password,
-                  obscureText: true,
+                Container(
+                  width: 64,
+                  height: 64,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppTheme.accent, width: 1.5),
+                  ),
+                  child: Text(
+                    u.initials,
+                    style: GoogleFonts.notoSans(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        u.fullName,
+                        style: GoogleFonts.notoSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (u.rank.isNotEmpty) u.rank,
+                          if (u.station.isNotEmpty) u.station,
+                        ].join('  |  '),
+                        style: GoogleFonts.notoSans(
+                          fontSize: 13,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: auth.busy ? null : _save,
-            child: Text(auth.busy ? 'Saving…' : 'Save changes'),
+          const SizedBox(height: 16),
+
+          // Service details (read-only)
+          FormPanel(
+            title: 'Service details',
+            subtitle:
+                'Maintained by your administrator. Contact them to correct any of these.',
+            child: Wrap(
+              spacing: 24,
+              runSpacing: 16,
+              children: [
+                for (final (label, value) in service)
+                  SizedBox(
+                    width: wide
+                        ? 300
+                        : (label == 'Official email' || label == 'Police station')
+                            ? double.infinity
+                            : (MediaQuery.of(context).size.width - 40 - 32 - 24) / 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: GoogleFonts.notoSans(
+                            fontSize: 12,
+                            color: AppTheme.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          value,
+                          style: GoogleFonts.notoSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Contact details (editable)
+          FormPanel(
+            title: 'Contact details',
+            subtitle: 'You can update your phone number and address.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NyayaTextField(
+                  label: 'Phone number',
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 14),
+                NyayaTextField(
+                  label: 'Address',
+                  controller: _address,
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 18),
+                ElevatedButton(
+                  onPressed: auth.busy ? null : _saveContact,
+                  child: Text(auth.busy ? 'Saving…' : 'Save contact details'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Password
+          FormPanel(
+            title: 'Change password',
+            subtitle: 'Use at least 8 characters.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NyayaTextField(
+                  label: 'Current password',
+                  controller: _currentPw,
+                  obscureText: true,
+                ),
+                const SizedBox(height: 14),
+                NyayaTextField(
+                  label: 'New password',
+                  controller: _newPw,
+                  obscureText: true,
+                ),
+                const SizedBox(height: 14),
+                NyayaTextField(
+                  label: 'Confirm new password',
+                  controller: _confirmPw,
+                  obscureText: true,
+                ),
+                if (_pwError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _pwError!,
+                    style: GoogleFonts.notoSans(
+                      fontSize: 13,
+                      color: AppTheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                ElevatedButton(
+                  onPressed: auth.busy ? null : _changePassword,
+                  child: const Text('Update password'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                context.read<AuthProvider>().logout();
+              },
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Sign out'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.error,
+                side: const BorderSide(color: AppTheme.error),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
           ),
         ],
       ),

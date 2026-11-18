@@ -3,47 +3,64 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NyayVanni Admin</title>
+  <title>NyayVanni Administration</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div id="login-view" class="login-wrap">
-    <div class="login-card">
-      <div class="brand">NV</div>
-      <h1>NyayVanni Admin</h1>
-      <p class="muted">Approve officer registrations, issue IDs, and manage all records.</p>
-      <form id="login-form">
+    <section class="login-brand">
+      <div class="brand-row"><span class="emblem">NV</span><strong>NyayVanni</strong></div>
+      <div>
+        <h1>Administration Console</h1>
+        <div class="rule"></div>
+        <p>Review officer registration requests, issue login credentials and maintain station, officer and FIR draft records.</p>
+      </div>
+      <small>For authorised administrators only. Access is logged.</small>
+    </section>
+    <section class="login-form-wrap">
+      <form id="login-form" class="login-form" autocomplete="on">
+        <h2>Sign in</h2>
+        <p class="muted">Enter your administrator username and password.</p>
         <label>Username<input name="username" autocomplete="username" required /></label>
         <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
-        <button type="submit">Sign in</button>
+        <button type="submit" class="block">Sign in</button>
         <p id="login-error" class="error"></p>
       </form>
-      <p class="hint">Authorised personnel only. Activity is logged.</p>
-    </div>
+    </section>
   </div>
 
   <div id="app-view" class="app hidden">
-    <aside>
-      <div class="aside-brand">NyayVanni</div>
-      <nav>
-        <button data-tab="overview" class="active">Overview</button>
-        <button data-tab="registrations">Registrations</button>
-        <button data-tab="officers">Officers</button>
-        <button data-tab="drafts">FIR drafts</button>
-        <button data-tab="stations">Stations</button>
-        <button data-tab="admins">Admins</button>
-        <button data-tab="emails">Email log</button>
-      </nav>
-      <button id="logout" class="ghost">Sign out</button>
-    </aside>
-    <main>
-      <header class="top">
-        <h2 id="page-title">Overview</h2>
-        <span id="who" class="muted"></span>
-      </header>
-      <p id="flash" class="flash hidden"></p>
-      <section id="panel"></section>
-    </main>
+    <header class="topbar">
+      <div class="brand-row"><span class="emblem sm">NV</span><strong>NyayVanni</strong><span class="topbar-sub">Administration</span></div>
+      <div class="topbar-right">
+        <span id="who"></span>
+        <button id="logout" class="link-btn">Sign out</button>
+      </div>
+    </header>
+    <div class="layout">
+      <aside>
+        <nav>
+          <div class="nav-label">Dashboard</div>
+          <button data-tab="overview" class="active">Overview</button>
+          <div class="nav-label">Records</div>
+          <button data-tab="registrations">Registrations <span id="nav-pending" class="count hidden"></span></button>
+          <button data-tab="officers">Officers</button>
+          <button data-tab="drafts">FIR drafts</button>
+          <div class="nav-label">Setup</div>
+          <button data-tab="stations">Police stations</button>
+          <button data-tab="admins">Administrators</button>
+          <button data-tab="emails">Email log</button>
+        </nav>
+      </aside>
+      <main>
+        <header class="page-head">
+          <h2 id="page-title">Overview</h2>
+          <p id="page-desc" class="muted"></p>
+        </header>
+        <p id="flash" class="flash hidden"></p>
+        <section id="panel"></section>
+      </main>
+    </div>
   </div>
 
   <div id="modal" class="modal hidden">

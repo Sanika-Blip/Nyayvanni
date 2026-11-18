@@ -33,7 +33,7 @@ class AppTheme {
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF1F3A5F), Color(0xFF2E5C8A)],
+    colors: [Color(0xFF1F3A5F), Color(0xFF1F3A5F)],
   );
 
   static const LinearGradient backgroundGradient = LinearGradient(
@@ -55,7 +55,7 @@ class AppTheme {
   );
 
   static ThemeData get lightTheme {
-    final base = GoogleFonts.interTextTheme();
+    final base = GoogleFonts.notoSansTextTheme();
     return ThemeData(
       useMaterial3: true,
       colorScheme: const ColorScheme.light(
@@ -68,59 +68,62 @@ class AppTheme {
       scaffoldBackgroundColor: background,
       dividerColor: divider,
       textTheme: base.copyWith(
-        displayLarge: GoogleFonts.inter(
+        displayLarge: GoogleFonts.notoSans(
           fontSize: 30,
           fontWeight: FontWeight.w700,
           color: textPrimary,
         ),
-        displayMedium: GoogleFonts.inter(
+        displayMedium: GoogleFonts.notoSans(
           fontSize: 24,
           fontWeight: FontWeight.w700,
           color: textPrimary,
         ),
-        headlineLarge: GoogleFonts.inter(
+        headlineLarge: GoogleFonts.notoSans(
           fontSize: 20,
           fontWeight: FontWeight.w700,
           color: textPrimary,
         ),
-        headlineMedium: GoogleFonts.inter(
+        headlineMedium: GoogleFonts.notoSans(
           fontSize: 17,
           fontWeight: FontWeight.w600,
           color: textPrimary,
         ),
-        titleLarge: GoogleFonts.inter(
+        titleLarge: GoogleFonts.notoSans(
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: textPrimary,
         ),
-        bodyLarge: GoogleFonts.inter(
+        bodyLarge: GoogleFonts.notoSans(
           fontSize: 15,
           fontWeight: FontWeight.w400,
           color: textPrimary,
           height: 1.5,
         ),
-        bodyMedium: GoogleFonts.inter(
+        bodyMedium: GoogleFonts.notoSans(
           fontSize: 14,
           fontWeight: FontWeight.w400,
           color: textSecondary,
           height: 1.5,
         ),
-        labelLarge: GoogleFonts.inter(
+        labelLarge: GoogleFonts.notoSans(
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: textPrimary,
         ),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: primaryDark,
+        foregroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.inter(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-          color: textPrimary,
+        titleTextStyle: GoogleFonts.notoSans(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
         ),
-        iconTheme: const IconThemeData(color: textPrimary),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
@@ -153,7 +156,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(6),
           ),
-          textStyle: GoogleFonts.inter(
+          textStyle: GoogleFonts.notoSans(
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),

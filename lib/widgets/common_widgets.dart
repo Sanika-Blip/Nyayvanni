@@ -28,14 +28,7 @@ class GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? Colors.white,
         borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: boxShadow ??
-            [
-              BoxShadow(
-                color: AppTheme.primaryDark.withOpacity(0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+        boxShadow: boxShadow,
         border: Border.all(color: AppTheme.divider, width: 1),
       ),
       child: child,
@@ -55,49 +48,40 @@ class StatusBadge extends StatelessWidget {
     Color bg;
     Color textColor;
     String label;
-    IconData icon;
 
     switch (status) {
       case ReportStatus.draft:
         bg = AppTheme.warning.withOpacity(0.15);
         textColor = const Color(0xFFB8860B);
         label = 'Draft';
-        icon = Icons.edit_outlined;
         break;
       case ReportStatus.completed:
         bg = AppTheme.secondary.withOpacity(0.2);
         textColor = const Color(0xFF2D6A4F);
         label = 'Reviewed';
-        icon = Icons.check_circle_outline;
         break;
       case ReportStatus.submitted:
         bg = AppTheme.primary.withOpacity(0.15);
         textColor = AppTheme.primaryDark;
         label = 'Finalised';
-        icon = Icons.verified_outlined;
         break;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: textColor.withOpacity(0.35)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: textColor),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: textColor,
-            ),
-          ),
-        ],
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.notoSans(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+          letterSpacing: 0.6,
+        ),
       ),
     );
   }
@@ -120,7 +104,7 @@ class ReportTypeBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.notoSans(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: AppTheme.primaryDark,
@@ -154,7 +138,7 @@ class SectionHeader extends StatelessWidget {
           children: [
             Text(
               title,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary,
@@ -163,7 +147,7 @@ class SectionHeader extends StatelessWidget {
             if (subtitle != null)
               Text(
                 subtitle!,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 13,
                   color: AppTheme.textMuted,
                 ),
@@ -292,38 +276,56 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(4),
+                ),
+              ),
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      style: GoogleFonts.notoSans(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primaryDark,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      label.toUpperCase(),
+                      style: GoogleFonts.notoSans(
+                        fontSize: 10,
+                        color: AppTheme.textMuted,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: AppTheme.textMuted,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -363,11 +365,10 @@ class NyayaTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.notoSans(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary,
-            letterSpacing: 0.3,
+            color: AppTheme.textPrimary,
           ),
         ),
         const SizedBox(height: 6),
@@ -378,22 +379,19 @@ class NyayaTextField extends StatelessWidget {
           maxLines: obscureText ? 1 : maxLines,
           obscureText: obscureText,
           keyboardType: keyboardType,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.notoSans(
             fontSize: 14,
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(
+            hintStyle: GoogleFonts.notoSans(
               fontSize: 14,
               color: AppTheme.textMuted,
             ),
-            prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, size: 18, color: AppTheme.textMuted)
-                : null,
             filled: true,
-            fillColor: AppTheme.surfaceVariant,
+            fillColor: Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide.none,
@@ -457,7 +455,7 @@ class LanguageChip extends StatelessWidget {
           children: [
             Text(
               language.nativeName,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: isSelected ? Colors.white : AppTheme.textPrimary,
@@ -465,7 +463,7 @@ class LanguageChip extends StatelessWidget {
             ),
             Text(
               language.name,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 10,
                 color: isSelected
                     ? Colors.white.withOpacity(0.8)
@@ -474,6 +472,96 @@ class LanguageChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+// ─── Emblem ──────────────────────────────────────────────────────────────────
+
+/// Round navy badge with a gold ring, used on splash, login and the dashboard.
+class NyayVaaniEmblem extends StatelessWidget {
+  final double size;
+  const NyayVaaniEmblem({super.key, this.size = 72});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppTheme.primaryDark,
+        border: Border.all(color: AppTheme.accent, width: size * 0.04 + 1),
+      ),
+      child: Icon(Icons.local_police, color: AppTheme.accent, size: size * 0.5),
+    );
+  }
+}
+
+/// Horizontal page margin that keeps content in a readable column (max ~760px)
+/// on wide screens while staying at 20px on phones.
+double contentGutter(BuildContext context, {double maxWidth = 760}) {
+  final w = MediaQuery.of(context).size.width;
+  final g = (w - maxWidth) / 2;
+  return g > 20 ? g : 20;
+}
+
+/// Titled, bordered section used on form-style screens (profile, etc.).
+class FormPanel extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget child;
+  const FormPanel({
+    super.key,
+    required this.title,
+    this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF7F8FA),
+              border: Border(bottom: BorderSide(color: AppTheme.divider)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.notoSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryDark,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: GoogleFonts.notoSans(
+                      fontSize: 12,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(padding: const EdgeInsets.all(16), child: child),
+        ],
       ),
     );
   }

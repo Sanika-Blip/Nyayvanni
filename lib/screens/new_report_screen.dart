@@ -118,7 +118,7 @@ class _NewReportScreenState extends State<NewReportScreen>
 
     setState(() {
       _isRecording = true;
-      _statusText = 'Listening... speak clearly';
+      _statusText = 'Recording. Speak clearly.';
     });
 
     _pulseController.repeat(reverse: true);
@@ -218,7 +218,7 @@ class _NewReportScreenState extends State<NewReportScreen>
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter()),
+        content: Text(message, style: GoogleFonts.notoSans()),
         backgroundColor: AppTheme.primaryDark,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -252,7 +252,9 @@ class _NewReportScreenState extends State<NewReportScreen>
             _buildSliverAppBar(),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.symmetric(
+                    horizontal: contentGutter(context, maxWidth: 680),
+                    vertical: 24),
                 child: Column(
                   children: [
                     _buildStepIndicator(),
@@ -282,33 +284,21 @@ class _NewReportScreenState extends State<NewReportScreen>
   Widget _buildSliverAppBar() {
     return SliverAppBar(
       pinned: true,
-      backgroundColor: AppTheme.background,
+      backgroundColor: AppTheme.primaryDark,
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      iconTheme: const IconThemeData(color: Colors.white),
       elevation: 0,
       leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primary.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.arrow_back_ios_new,
-              size: 16, color: AppTheme.textPrimary),
-        ),
+        icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
       title: Text(
         'New FIR draft',
-        style: GoogleFonts.inter(
+        style: GoogleFonts.notoSans(
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary,
+          color: Colors.white,
         ),
       ),
     );
@@ -349,7 +339,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                                   color: Colors.white, size: 16)
                               : Text(
                                   '${i + 1}',
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.notoSans(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: isActive
@@ -362,7 +352,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                       const SizedBox(height: 4),
                       Text(
                         steps[i],
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.notoSans(
                           fontSize: 11,
                           fontWeight:
                               isActive ? FontWeight.w700 : FontWeight.w400,
@@ -401,8 +391,8 @@ class _NewReportScreenState extends State<NewReportScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Your details (optional)',
-            style: GoogleFonts.inter(
+            'Complainant details',
+            style: GoogleFonts.notoSans(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -410,15 +400,15 @@ class _NewReportScreenState extends State<NewReportScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            'You can skip this and we will try to pick your name from what you say.',
-            style: GoogleFonts.inter(
+            'Optional. If left blank, the name is taken from the recorded statement.',
+            style: GoogleFonts.notoSans(
               fontSize: 13,
               color: AppTheme.textMuted,
             ),
           ),
           const SizedBox(height: 16),
           NyayaTextField(
-            label: 'Your name',
+            label: 'Complainant name',
             controller: _nameCtrl,
             prefixIcon: Icons.person_outline,
           ),
@@ -458,8 +448,8 @@ class _NewReportScreenState extends State<NewReportScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Select Language',
-            style: GoogleFonts.inter(
+            'Language of statement',
+            style: GoogleFonts.notoSans(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -467,8 +457,8 @@ class _NewReportScreenState extends State<NewReportScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            'Choose Hindi, Marathi, or English — or let the device detect it',
-            style: GoogleFonts.inter(
+            'Choose Hindi, Marathi or English, or let the device detect it.',
+            style: GoogleFonts.notoSans(
               fontSize: 13,
               color: AppTheme.textMuted,
             ),
@@ -530,7 +520,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                     const SizedBox(width: 6),
                     Text(
                       '${_selectedLanguage.nativeName} • FIR draft',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.notoSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.primary,
@@ -556,7 +546,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               Text(
                 _statusText,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 14,
                   color: _isRecording
                       ? AppTheme.primaryDark
@@ -690,7 +680,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               const SizedBox(width: 8),
               Text(
                 _isRecording ? 'Live Transcript' : 'Recorded Transcript',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textSecondary,
@@ -709,7 +699,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                   ),
                   child: Text(
                     '${(_confidence * 100).toInt()}% accurate',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.notoSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: (_confidence > 0 && _confidence < 0.7)
@@ -731,7 +721,7 @@ class _NewReportScreenState extends State<NewReportScreen>
             child: TextField(
               controller: _transcriptCtrl,
               maxLines: null,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 14,
                 color: AppTheme.textPrimary,
                 height: 1.6,
@@ -813,7 +803,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                   const SizedBox(width: 8),
                   Text(
                     'Transcript ready',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.notoSans(
                       fontSize: 13,
                       color: Colors.white70,
                       fontWeight: FontWeight.w600,
@@ -824,7 +814,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               const SizedBox(height: 8),
               Text(
                 'Review & Generate',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
@@ -833,7 +823,7 @@ class _NewReportScreenState extends State<NewReportScreen>
               const SizedBox(height: 4),
               Text(
                 'Your speech has been converted to text. Check it, then generate the FIR draft.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 13,
                   color: Colors.white70,
                   height: 1.5,
@@ -851,7 +841,7 @@ class _NewReportScreenState extends State<NewReportScreen>
             children: [
               Text(
                 'Report Summary',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -894,7 +884,7 @@ class _NewReportScreenState extends State<NewReportScreen>
             children: [
               Text(
                 'Recorded Transcript',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -911,7 +901,7 @@ class _NewReportScreenState extends State<NewReportScreen>
                   _transcriptCtrl.text.isNotEmpty
                       ? _transcriptCtrl.text
                       : 'No transcript available',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.notoSans(
                     fontSize: 14,
                     color: AppTheme.textPrimary,
                     height: 1.6,
@@ -971,7 +961,7 @@ class _NewReportScreenState extends State<NewReportScreen>
             ),
             child: Text(
               'Re-record',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppTheme.textSecondary,
@@ -1007,7 +997,7 @@ class _ReviewRow extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.notoSans(
               fontSize: 13,
               color: AppTheme.textMuted,
             ),
@@ -1015,7 +1005,7 @@ class _ReviewRow extends StatelessWidget {
           const Spacer(),
           Text(
             value,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.notoSans(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: valueColor ?? AppTheme.textPrimary,

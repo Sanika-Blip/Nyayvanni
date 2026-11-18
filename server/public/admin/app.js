@@ -21,16 +21,29 @@ function showFlash(msg, bad = false) {
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch(API + path, {
-    ...opts,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(opts.headers || {}),
-    },
-  });
+  let res;
+  try {
+    res = await fetch(API + path, {
+      ...opts,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(opts.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error("Cannot reach the server. Make sure it is running, then try again.");
+  }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `Request failed (${esc(res.status)})`);
+  if (res.status === 401 && token && !path.includes("/login")) {
+    // Session ended (expired, or the server restarted): return to the sign-in page.
+    token = "";
+    localStorage.removeItem("nv_admin_token");
+    showLogin();
+    $("login-error").textContent = "Your session has ended. Please sign in again.";
+    throw new Error("Your session has ended. Please sign in again.");
+  }
+  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
   return body;
 }
 
@@ -119,43 +132,98 @@ $("modal").addEventListener("click", (e) => {
 });
 
 const titles = {
-  overview: "Overview",
-  registrations: "Officer registrations",
-  officers: "Police officers",
-  drafts: "FIR drafts",
-  stations: "Police stations",
-  admins: "Administrators",
-  emails: "Email log",
+  overview: ["Overview", "Summary of registrations, officers and FIR drafts."],
+  registrations: ["Officer registrations", "Review access requests, then approve to issue an Officer ID and password."],
+  officers: ["Police officers", "Active and disabled officer accounts."],
+  drafts: ["FIR drafts", "Draft FIRs recorded by officers through the app."],
+  stations: ["Police stations", "Stations officers can choose when registering."],
+  admins: ["Administrators", "People who can sign in to this console."],
+  emails: ["Email log", "Credential emails sent or stored. Passwords are removed once an email is delivered."],
 };
 
 async function render(tab) {
-  $("page-title").textContent = titles[tab];
+  $("page-title").textContent = titles[tab][0];
+  $("page-desc").textContent = titles[tab][1];
   panel.innerHTML = "<p class='muted'>Loading…</p>";
   try {
-    if (tab === "overview") return renderOverview();
-    if (tab === "registrations") return renderRegistrations();
-    if (tab === "officers") return renderOfficers();
-    if (tab === "drafts") return renderDrafts();
-    if (tab === "stations") return renderStations();
-    if (tab === "admins") return renderAdmins();
-    if (tab === "emails") return renderEmails();
+    if (tab === "overview") await renderOverview();
+    if (tab === "registrations") await renderRegistrations();
+    if (tab === "officers") await renderOfficers();
+    if (tab === "drafts") await renderDrafts();
+    if (tab === "stations") await renderStations();
+    if (tab === "admins") await renderAdmins();
+    if (tab === "emails") await renderEmails();
+    if (tab !== "overview") addSearch();
+    refreshPendingBadge();
   } catch (err) {
     panel.innerHTML = `<p class="error">${esc(err.message)}</p>`;
   }
 }
 
+// Adds a search box that filters the rows of the table on the page.
+function addSearch() {
+  const table = panel.querySelector("table");
+  if (!table) return;
+  let bar = panel.querySelector(".toolbar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.className = "toolbar";
+    panel.insertBefore(bar, table);
+  }
+  const input = document.createElement("input");
+  input.className = "search";
+  input.type = "search";
+  input.placeholder = "Search this list…";
+  bar.prepend(input);
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    table.querySelectorAll("tbody tr").forEach((tr) => {
+      tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+}
+
+// Shows the number of requests waiting for a decision next to "Registrations".
+async function refreshPendingBadge() {
+  try {
+    const { data } = await api("/api/admin/overview");
+    const el = $("nav-pending");
+    el.textContent = data.pendingRegistrations;
+    el.classList.toggle("hidden", !data.pendingRegistrations);
+  } catch {}
+}
+
 async function renderOverview() {
-  const { data } = await api("/api/admin/overview");
+  const [{ data }, regs] = await Promise.all([api("/api/admin/overview"), api("/api/admin/registrations")]);
+  const pending = regs.data.filter((r) => r.status === "pending");
   panel.innerHTML = `
-    <div class="cards">
-      <div class="stat"><span>Pending registrations</span><b>${data.pendingRegistrations}</b></div>
-      <div class="stat"><span>Officers</span><b>${data.officers}</b></div>
-      <div class="stat"><span>FIR drafts</span><b>${data.drafts}</b></div>
-      <div class="stat"><span>Stations</span><b>${data.stations}</b></div>
-      <div class="stat"><span>Emails logged</span><b>${data.emails}</b></div>
+    <div class="summary">
+      <div><span>Pending requests</span><b>${data.pendingRegistrations}</b></div>
+      <div><span>Officers</span><b>${data.officers}</b></div>
+      <div><span>FIR drafts</span><b>${data.drafts}</b></div>
+      <div><span>Police stations</span><b>${data.stations}</b></div>
     </div>
-    <p class="muted" style="margin-top:18px">Approve a registration to create an officer ID and password. Credentials are emailed to the address used at registration. If SMTP is not set, open the Email log tab.</p>
+    <div class="section-title">Awaiting approval</div>
+    <table>
+      <thead><tr><th>Name</th><th>Rank</th><th>Email</th><th>Station</th><th>Requested</th><th></th></tr></thead>
+      <tbody>
+        ${pending.map((r) => `
+          <tr>
+            <td><strong>${esc(r.fullName)}</strong></td>
+            <td>${esc(r.rank || "—")}</td>
+            <td>${esc(r.email)}</td>
+            <td>${esc(r.station || "—")}</td>
+            <td>${esc(new Date(r.createdAt).toLocaleDateString())}</td>
+            <td>${actions(`
+              <button data-approve="${esc(r.id)}" class="ok">Approve</button>
+              <button data-reject="${esc(r.id)}" class="warn">Reject</button>
+            `)}</td>
+          </tr>`).join("") || `<tr><td colspan="6" class="empty">No requests are waiting for approval.</td></tr>`}
+      </tbody>
+    </table>
   `;
+  panel.querySelectorAll("[data-approve]").forEach((b) => b.onclick = () => approve(b.dataset.approve, regs.data, "overview"));
+  panel.querySelectorAll("[data-reject]").forEach((b) => b.onclick = () => reject(b.dataset.reject, "overview"));
 }
 
 async function renderRegistrations() {
@@ -174,12 +242,12 @@ async function renderRegistrations() {
             <td>${esc(r.station || "")}<br/>${esc(r.district || "")}</td>
             <td><span class="badge ${esc(r.status)}">${esc(r.status)}</span></td>
             <td>${actions(`
-              ${r.status === "pending" ? `<button data-approve="${esc(r.id)}" class="ok">Approve & email ID</button>
+              ${r.status === "pending" ? `<button data-approve="${esc(r.id)}" class="ok">Approve</button>
               <button data-reject="${esc(r.id)}" class="warn">Reject</button>` : ""}
               <button data-edit-reg="${esc(r.id)}">Edit</button>
               <button data-del-reg="${esc(r.id)}" class="danger">Delete</button>
             `)}</td>
-          </tr>`).join("") || `<tr><td colspan="5">No registrations yet.</td></tr>`}
+          </tr>`).join("") || `<tr><td colspan="5" class="empty">No registrations yet.</td></tr>`}
       </tbody>
     </table>
   `;
@@ -221,7 +289,7 @@ function regForm(row) {
   };
 }
 
-async function approve(id, rows) {
+async function approve(id, rows, backTo = "registrations") {
   const row = rows.find((r) => r.id === id);
   openModal("Approve & issue credentials", `
     <p class="muted">ID and password will be emailed to <strong>${esc(row.email)}</strong>.</p>
@@ -238,16 +306,16 @@ async function approve(id, rows) {
     const v = formValues(e.target);
     const res = await api("/api/admin/registrations/" + id + "/approve", { method: "POST", body: JSON.stringify(v) });
     closeModal();
-    showFlash(`${esc(res.message)} Officer ID: ${esc(res.data.officerId)}  Password: ${esc(res.data.password)}`);
-    render("registrations");
+    showFlash(`${res.message} Officer ID: ${res.data.officerId}  Password: ${res.data.password}`);
+    render(backTo);
   };
 }
 
-async function reject(id) {
+async function reject(id, backTo = "registrations") {
   const notes = prompt("Rejection note (optional)") || "";
   await api("/api/admin/registrations/" + id + "/reject", { method: "POST", body: JSON.stringify({ notes }) });
   showFlash("Registration rejected");
-  render("registrations");
+  render(backTo);
 }
 
 async function renderOfficers() {
@@ -268,7 +336,7 @@ async function renderOfficers() {
               <button data-edit-off="${esc(o.id)}">Edit</button>
               <button data-del-off="${esc(o.id)}" class="danger">Delete</button>
             `)}</td>
-          </tr>`).join("") || `<tr><td colspan="6">No officers yet.</td></tr>`}
+          </tr>`).join("") || `<tr><td colspan="6" class="empty">No officers yet.</td></tr>`}
       </tbody>
     </table>
   `;
@@ -323,7 +391,7 @@ async function renderDrafts() {
               <button data-edit-d="${esc(d.id)}">Edit</button>
               <button data-del-d="${esc(d.id)}" class="danger">Delete</button>
             `)}</td>
-          </tr>`).join("") || `<tr><td colspan="6">No FIR drafts.</td></tr>`}
+          </tr>`).join("") || `<tr><td colspan="6" class="empty">No FIR drafts.</td></tr>`}
       </tbody>
     </table>
   `;
@@ -460,7 +528,7 @@ async function renderEmails() {
             <td>${esc(e.subject)}</td>
             <td>${esc(e.delivered ? "Yes" : "Log only")}</td>
             <td>${actions(`<button data-view-e="${esc(e.id)}">View</button><button data-del-e="${esc(e.id)}" class="danger">Delete</button>`)}</td>
-          </tr>`).join("") || `<tr><td colspan="5">No emails yet.</td></tr>`}
+          </tr>`).join("") || `<tr><td colspan="5" class="empty">No emails yet.</td></tr>`}
       </tbody>
     </table>
   `;

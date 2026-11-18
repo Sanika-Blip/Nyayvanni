@@ -361,12 +361,16 @@ const store = {
     return { officer: publicOfficer(row), password };
   },
   // Officers may only change their own contact details and password.
+  // Name, rank, badge, station and email are controlled by the administrator.
   async updateOwnProfile(id, payload) {
-    const allowed = ["fullName", "phone", "address", "rank", "station", "district", "state"];
+    const row = this.findOfficerById(id);
+    if (!row) return null;
     const safe = {};
-    for (const f of allowed) if (payload[f] != null) safe[f] = payload[f];
+    for (const f of ["phone", "address"]) if (payload[f] != null) safe[f] = payload[f];
     if (payload.password) {
-      if (String(payload.password).length < 8) throw new Error("Password must be at least 8 characters");
+      if (String(payload.password).length < 8) throw new Error("New password must be at least 8 characters");
+      const ok = await bcrypt.compare(String(payload.currentPassword || ""), row.passwordHash);
+      if (!ok) throw new Error("Current password is incorrect");
       safe.password = payload.password;
     }
     return this.updateOfficer(id, safe);

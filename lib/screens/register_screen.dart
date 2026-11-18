@@ -96,14 +96,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: Text('Officer registration',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+            style: GoogleFonts.notoSans(fontWeight: FontWeight.w700)),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.symmetric(
+            horizontal: contentGutter(context, maxWidth: 640), vertical: 24),
         children: [
           Text(
             'Your request goes to the admin panel. After approval, your officer ID and password are sent to this email.',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.notoSans(
                 fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 18),

@@ -41,7 +41,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               _buildAppBar(context, report),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.symmetric(
+                      horizontal: contentGutter(context, maxWidth: 760),
+                      vertical: 24),
                   child: Column(
                     children: [
                       _buildReportHeader(report),
@@ -72,55 +74,28 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   Widget _buildAppBar(BuildContext context, PoliceReport report) {
     return SliverAppBar(
       pinned: true,
-      backgroundColor: AppTheme.background,
+      backgroundColor: AppTheme.primaryDark,
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      iconTheme: const IconThemeData(color: Colors.white),
       elevation: 0,
       leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primary.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.arrow_back_ios_new,
-              size: 16, color: AppTheme.textPrimary),
-        ),
+        icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
       title: Text(
         report.reportNumber,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.notoSans(
           fontSize: 16,
           fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary,
+          color: Colors.white,
         ),
       ),
       actions: [
         Container(
           margin: const EdgeInsets.only(right: 8),
           child: IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primary.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.share_outlined,
-                  size: 18, color: AppTheme.textPrimary),
-            ),
+            icon: const Icon(Icons.share_outlined, size: 20, color: Colors.white),
             onPressed: () => _shareReport(report),
           ),
         ),
@@ -133,15 +108,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withOpacity(0.3),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        color: AppTheme.primaryDark,
+        borderRadius: BorderRadius.circular(4),
+        border: const Border(
+          bottom: BorderSide(color: AppTheme.accent, width: 3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,7 +135,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   children: [
                     Text(
                       'FIR draft',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.notoSans(
                         fontSize: 13,
                         color: Colors.white70,
                         fontWeight: FontWeight.w500,
@@ -172,7 +143,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     ),
                     Text(
                       report.reportNumber,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.notoSans(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
@@ -224,8 +195,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 const Icon(Icons.insights, color: Colors.white70, size: 14),
                 const SizedBox(width: 6),
                 Text(
-                  'AI Accuracy: ${(report.confidenceScore * 100).toInt()}%',
-                  style: GoogleFonts.inter(
+                  'Speech confidence: ${(report.confidenceScore * 100).toInt()}%',
+                  style: GoogleFonts.notoSans(
                     fontSize: 12,
                     color: Colors.white70,
                     fontWeight: FontWeight.w600,
@@ -259,7 +230,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         children: [
           Text(
             'Report Information',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.notoSans(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -328,7 +299,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       children: [
                         Text(
                           'Summary',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.notoSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.primary,
@@ -337,7 +308,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         const SizedBox(height: 4),
                         Text(
                           report.summary,
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.notoSans(
                             fontSize: 13,
                             color: AppTheme.textSecondary,
                             height: 1.5,
@@ -368,7 +339,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   Expanded(
                     child: Text(
                       'Structured FIR draft',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.notoSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
@@ -389,8 +360,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                             size: 12, color: AppTheme.success),
                         const SizedBox(width: 4),
                         Text(
-                          'AI filled',
-                          style: GoogleFonts.inter(
+                          'Auto-extracted',
+                          style: GoogleFonts.notoSans(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.success,
@@ -404,7 +375,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 'Edit any field before you export. This is a draft, not a filed FIR.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 12,
                   color: AppTheme.textMuted,
                 ),
@@ -420,7 +391,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   ),
                   child: Text(
                     'Low transcription confidence (${(report.confidenceScore * 100).toInt()}%). Please check highlighted sections.',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.notoSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF8A6D1B),
@@ -455,7 +426,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         children: [
           Text(
             'Original Transcript',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.notoSans(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
@@ -471,7 +442,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             ),
             child: Text(
               report.rawTranscript,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 14,
                 color: AppTheme.textSecondary,
                 height: 1.6,
@@ -948,17 +919,17 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Text(
           'Finalise this draft?',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+          style: GoogleFonts.notoSans(fontWeight: FontWeight.w700),
         ),
         content: Text(
           'This marks the draft as ready for a duty officer to review. It does not file an FIR with the police or CCTNS.',
-          style: GoogleFonts.inter(fontSize: 14, color: AppTheme.textSecondary),
+          style: GoogleFonts.notoSans(fontSize: 14, color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Cancel',
-                style: GoogleFonts.inter(color: AppTheme.textMuted)),
+                style: GoogleFonts.notoSans(color: AppTheme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -967,7 +938,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Draft finalised for review',
-                      style: GoogleFonts.inter()),
+                      style: GoogleFonts.notoSans()),
                   backgroundColor: AppTheme.success,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
@@ -980,7 +951,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6)),
             ),
-            child: Text('Finalise', style: GoogleFonts.inter()),
+            child: Text('Finalise', style: GoogleFonts.notoSans()),
           ),
         ],
       ),
@@ -1013,14 +984,14 @@ class _HeaderInfoItem extends StatelessWidget {
           children: [
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 10,
                 color: Colors.white60,
               ),
             ),
             Text(
               value,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
@@ -1057,14 +1028,14 @@ class _MetaItem extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 11,
                   color: AppTheme.textMuted,
                 ),
               ),
               Text(
                 value,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.notoSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
@@ -1140,7 +1111,7 @@ class _SectionBlockState extends State<_SectionBlock> {
                 child: Center(
                   child: Text(
                     '${widget.index}',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.notoSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.primary,
@@ -1152,7 +1123,7 @@ class _SectionBlockState extends State<_SectionBlock> {
               Expanded(
                 child: Text(
                   widget.section.title,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.notoSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.textPrimary,
@@ -1187,7 +1158,7 @@ class _SectionBlockState extends State<_SectionBlock> {
               controller: _controller,
               maxLines: null,
               onChanged: widget.onChanged,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.notoSans(
                 fontSize: 13,
                 color: AppTheme.textSecondary,
                 height: 1.6,
